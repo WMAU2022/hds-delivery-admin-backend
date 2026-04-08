@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
+const store = require('../lib/memory-store');
 
 // Day name to number mapping (0 = Sunday, 1 = Monday, etc.)
 const DAY_MAP = {
@@ -31,86 +32,50 @@ function convertDayToNumber(dayName) {
 
 /**
  * GET /schedules
- * Get all delivery schedules
+ * Get all delivery schedules (using memory store)
  */
-router.get('/', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM delivery_schedules ORDER BY region_id, delivery_day');
-    // Convert day numbers back to names for frontend
-    const schedules = result.rows.map(s => ({
-      ...s,
-      cutoff_day_name: REVERSE_DAY_MAP[s.cutoff_day] || 'Unknown',
-      pack_day_name: REVERSE_DAY_MAP[s.pack_day] || 'Unknown',
-      delivery_day_name: REVERSE_DAY_MAP[s.delivery_day] || 'Unknown'
-    }));
-    res.json({ data: schedules });
-  } catch (error) {
-    console.error('Error fetching schedules:', error);
-    res.status(500).json({ error: error.message });
-  }
+router.get('/', (req, res) => {
+  res.json({ data: store.getAll() });
 });
 
 /**
  * GET /schedules/:id
  * Get a specific schedule
  */
-router.get('/:id', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM delivery_schedules WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Schedule not found' });
-    }
-    const s = result.rows[0];
-    res.json({
-      ...s,
-      cutoff_day_name: REVERSE_DAY_MAP[s.cutoff_day] || 'Unknown',
-      pack_day_name: REVERSE_DAY_MAP[s.pack_day] || 'Unknown',
-      delivery_day_name: REVERSE_DAY_MAP[s.delivery_day] || 'Unknown'
-    });
-  } catch (error) {
-    console.error('Error fetching schedule:', error);
-    res.status(500).json({ error: error.message });
+router.get('/:id', (req, res) => {
+  const schedule = store.getById(req.params.id);
+  if (!schedule) {
+    return res.status(404).json({ error: 'Schedule not found' });
   }
+  res.json(schedule);
 });
 
 /**
  * POST /schedules
  * Create a new delivery schedule
  */
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const { region_id, cutoff_day, pack_day, delivery_day, hours, enabled, is_default } = req.body;
 
-    // Convert day names to numbers
-    const cutoffNum = convertDayToNumber(cutoff_day);
-    const packNum = convertDayToNumber(pack_day);
-    const deliveryNum = convertDayToNumber(delivery_day);
-
-    if (cutoffNum === null || packNum === null || deliveryNum === null) {
-      return res.status(400).json({ error: 'Invalid day name. Must be: Sunday-Saturday or 0-6' });
+    if (!region_id || cutoff_day === undefined || pack_day === undefined || delivery_day === undefined) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO delivery_schedules (region_id, cutoff_day, pack_day, delivery_day, hours, enabled, is_default)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [region_id, cutoffNum, packNum, deliveryNum, hours, enabled !== false, is_default === true]
-    );
+    const schedule = store.create({
+      region_id,
+      cutoff_day,
+      pack_day,
+      delivery_day,
+      hours: hours || 'AM',
+      enabled,
+      is_default,
+    });
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(schedule);
   } catch (error) {
     console.error('Error creating schedule:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      constraint: error.constraint,
-      detail: error.detail,
-      toString: error.toString()
-    });
-    res.status(500).json({ 
-      error: error.message || error.toString() || 'Unknown error', 
-      code: error.code 
-    });
+    res.status(500).json({ error: error.message || 'Unknown error' });
   }
 });
 
@@ -118,34 +83,13 @@ router.post('/', async (req, res) => {
  * PUT /schedules/:id
  * Update a delivery schedule
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
-    const { cutoff_day, pack_day, delivery_day, hours, enabled, is_default } = req.body;
-
-    // Convert day names to numbers if provided
-    let cutoffNum = cutoff_day !== undefined ? convertDayToNumber(cutoff_day) : null;
-    let packNum = pack_day !== undefined ? convertDayToNumber(pack_day) : null;
-    let deliveryNum = delivery_day !== undefined ? convertDayToNumber(delivery_day) : null;
-
-    const result = await pool.query(
-      `UPDATE delivery_schedules 
-       SET cutoff_day = COALESCE($1, cutoff_day),
-           pack_day = COALESCE($2, pack_day),
-           delivery_day = COALESCE($3, delivery_day),
-           hours = COALESCE($4, hours),
-           enabled = COALESCE($5, enabled),
-           is_default = COALESCE($6, is_default),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
-       RETURNING *`,
-      [cutoffNum, packNum, deliveryNum, hours, enabled, is_default, req.params.id]
-    );
-
-    if (result.rows.length === 0) {
+    const schedule = store.update(req.params.id, req.body);
+    if (!schedule) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
-
-    res.json(result.rows[0]);
+    res.json(schedule);
   } catch (error) {
     console.error('Error updating schedule:', error);
     res.status(500).json({ error: error.message });
@@ -156,22 +100,14 @@ router.put('/:id', async (req, res) => {
  * PUT /schedules/:id/toggle
  * Toggle schedule enabled status
  */
-router.put('/:id/toggle', async (req, res) => {
+router.put('/:id/toggle', (req, res) => {
   try {
-    const result = await pool.query(
-      `UPDATE delivery_schedules 
-       SET enabled = NOT enabled,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1
-       RETURNING *`,
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
+    const current = store.getById(req.params.id);
+    if (!current) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
-
-    res.json(result.rows[0]);
+    const schedule = store.update(req.params.id, { enabled: !current.enabled });
+    res.json(schedule);
   } catch (error) {
     console.error('Error toggling schedule:', error);
     res.status(500).json({ error: error.message });
@@ -182,29 +118,20 @@ router.put('/:id/toggle', async (req, res) => {
  * PUT /schedules/:regionId/set-default/:scheduleId
  * Set a schedule as default for a region
  */
-router.put('/:regionId/set-default/:scheduleId', async (req, res) => {
+router.put('/:regionId/set-default/:scheduleId', (req, res) => {
   try {
     // Clear all defaults for this region
-    await pool.query(
-      'UPDATE delivery_schedules SET is_default = false WHERE region_id = $1',
-      [req.params.regionId]
-    );
+    store.getAll()
+      .filter(s => s.region_id === parseInt(req.params.regionId))
+      .forEach(s => store.update(s.id, { is_default: false }));
 
     // Set this schedule as default
-    const result = await pool.query(
-      `UPDATE delivery_schedules 
-       SET is_default = true,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND region_id = $2
-       RETURNING *`,
-      [req.params.scheduleId, req.params.regionId]
-    );
-
-    if (result.rows.length === 0) {
+    const schedule = store.update(req.params.scheduleId, { is_default: true });
+    if (!schedule) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
 
-    res.json({ success: true, schedule: result.rows[0] });
+    res.json({ success: true, schedule });
   } catch (error) {
     console.error('Error setting default schedule:', error);
     res.status(500).json({ error: error.message });
@@ -215,17 +142,12 @@ router.put('/:regionId/set-default/:scheduleId', async (req, res) => {
  * DELETE /schedules/:id
  * Delete a delivery schedule
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
-    const result = await pool.query(
-      'DELETE FROM delivery_schedules WHERE id = $1 RETURNING id',
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
+    const success = store.delete(req.params.id);
+    if (!success) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
-
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting schedule:', error);
