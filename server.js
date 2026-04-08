@@ -24,7 +24,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Test endpoint - return hardcoded data
+// Test endpoints - return hardcoded data
 app.get('/api/regions', (req, res) => {
   res.json({
     data: [
@@ -32,6 +32,21 @@ app.get('/api/regions', (req, res) => {
       { id: 2, name: 'Melbourne Metro', code: 'MEL' }
     ]
   });
+});
+
+// Get single region detail
+app.get('/api/regions/:id', (req, res) => {
+  const regionId = parseInt(req.params.id);
+  const regions = {
+    1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true },
+    2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true }
+  };
+  
+  if (regions[regionId]) {
+    res.json(regions[regionId]);
+  } else {
+    res.status(404).json({ error: 'Region not found' });
+  }
 });
 
 app.get('/api/suburbs', (req, res) => {
@@ -42,6 +57,38 @@ app.get('/api/suburbs', (req, res) => {
       { id: 3, name: 'Melbourne CBD', postcode: '3000', state: 'VIC', region_id: 2 }
     ]
   });
+});
+
+// Get suburbs for region
+app.get('/api/regions/:id/suburbs', (req, res) => {
+  const regionId = parseInt(req.params.id);
+  const suburbs = {
+    1: [
+      { id: 1, name: 'Sydney CBD', postcode: '2000', state: 'NSW', region_id: 1 },
+      { id: 2, name: 'Parramatta', postcode: '2150', state: 'NSW', region_id: 1 }
+    ],
+    2: [
+      { id: 3, name: 'Melbourne CBD', postcode: '3000', state: 'VIC', region_id: 2 }
+    ]
+  };
+  
+  res.json({ data: suburbs[regionId] || [] });
+});
+
+// Get schedules for region
+app.get('/api/regions/:id/schedules', (req, res) => {
+  const regionId = parseInt(req.params.id);
+  const schedules = {
+    1: [
+      { id: 1, region_id: 1, delivery_day: 'Monday', hours: 'AM' },
+      { id: 2, region_id: 1, delivery_day: 'Wednesday', hours: 'PM' }
+    ],
+    2: [
+      { id: 3, region_id: 2, delivery_day: 'Friday', hours: 'AM' }
+    ]
+  };
+  
+  res.json({ data: schedules[regionId] || [] });
 });
 
 app.get('/api/schedules', (req, res) => {
