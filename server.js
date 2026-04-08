@@ -174,9 +174,12 @@ app.get('/api/regions/:id', (req, res) => {
 
 app.get('/api/suburbs', (req, res) => {
   // Return all suburbs from the real data with auto-incrementing IDs
+  // Map 'suburb' field to 'name' for frontend compatibility
   const suburbs = allSuburbs.map((suburb, index) => ({
     id: index + 1,
-    ...suburb,
+    name: suburb.suburb,  // Frontend expects 'name', not 'suburb'
+    postcode: suburb.postcode,
+    state: suburb.state,
     region_id: suburb.region_id
   }));
   
@@ -188,12 +191,15 @@ app.get('/api/suburbs', (req, res) => {
 // Get suburbs for region
 app.get('/api/regions/:id/suburbs', (req, res) => {
   const regionId = parseInt(req.params.id);
-  // Filter suburbs by region
+  // Filter suburbs by region - map 'suburb' field to 'name' for frontend
   const suburbsForRegion = allSuburbs
     .filter(s => s.region_id === regionId)
     .map((suburb, index) => ({
       id: index + 1,
-      ...suburb
+      name: suburb.suburb,  // Frontend expects 'name'
+      postcode: suburb.postcode,
+      state: suburb.state,
+      region_id: suburb.region_id
     }));
   
   res.json({ data: suburbsForRegion });
