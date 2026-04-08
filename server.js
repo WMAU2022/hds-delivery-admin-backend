@@ -257,6 +257,7 @@ async function runMigrations() {
     console.log('🔧 Running database migrations...');
     
     // Create regions table
+    console.log('  Creating regions table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS regions (
         id SERIAL PRIMARY KEY,
@@ -266,8 +267,10 @@ async function runMigrations() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log('    ✅ regions table ready');
     
     // Create suburbs table
+    console.log('  Creating suburbs table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS suburbs (
         id SERIAL PRIMARY KEY,
@@ -281,8 +284,10 @@ async function runMigrations() {
         UNIQUE(name, postcode, state)
       )
     `);
+    console.log('    ✅ suburbs table ready');
     
     // Create delivery_schedules table
+    console.log('  Creating delivery_schedules table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS delivery_schedules (
         id SERIAL PRIMARY KEY,
@@ -297,8 +302,10 @@ async function runMigrations() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log('    ✅ delivery_schedules table ready');
     
     // Create blackout_dates table
+    console.log('  Creating blackout_dates table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS blackout_dates (
         id SERIAL PRIMARY KEY,
@@ -309,13 +316,56 @@ async function runMigrations() {
         UNIQUE(region_id, blackout_date)
       )
     `);
+    console.log('    ✅ blackout_dates table ready');
     
-    console.log('✅ Migrations completed');
+    console.log('✅ All migrations completed successfully');
     client.release();
   } catch (error) {
-    console.error('❌ Migration error:', error.message);
+    console.error('❌ Migration error:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error code:', error.code);
     client.release();
     throw error;
+  }
+}
+
+// Seed initial data
+async function seedInitialData() {
+  const client = await pool.connect();
+  try {
+    console.log('🌱 Seeding initial data...');
+    
+    // Check if regions exist
+    const regionsResult = await client.query('SELECT COUNT(*) FROM regions');
+    if (parseInt(regionsResult.rows[0].count) === 0) {
+      console.log('  Inserting regions...');
+      await client.query(`
+        INSERT INTO regions (name, code) VALUES
+        ('Sydney Metro', 'SYD'),
+        ('Melbourne Metro', 'MEL')
+      `);
+      console.log('    ✅ Regions inserted');
+    }
+    
+    // Check if schedules exist
+    const schedulesResult = await client.query('SELECT COUNT(*) FROM delivery_schedules');
+    if (parseInt(schedulesResult.rows[0].count) === 0) {
+      console.log('  Inserting schedules...');
+      await client.query(`
+        INSERT INTO delivery_schedules (region_id, cutoff_day, pack_day, delivery_day, hours, enabled, is_default) VALUES
+        (1, 4, 6, 0, 'AM', true, true),
+        (1, 4, 6, 0, 'Business Hours', true, false),
+        (2, 4, 5, 5, 'AM', true, true),
+        (2, 4, 5, 5, 'Business Hours', true, false)
+      `);
+      console.log('    ✅ Schedules inserted');
+    }
+    
+    console.log('✅ Seed data complete');
+    client.release();
+  } catch (error) {
+    console.error('❌ Seed error:', error.message);
+    client.release();
   }
 }
 
@@ -330,6 +380,13 @@ app.listen(PORT, async () => {
   } catch (error) {
     console.error('⚠️  Migration warning:', error.message);
     console.log('(Tables might already exist - continuing anyway)');
+  }
+  
+  // Seed initial data
+  try {
+    await seedInitialData();
+  } catch (error) {
+    console.error('⚠️  Seed warning:', error.message);
   }
   
   // Test DB connection
