@@ -24,6 +24,121 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// PUBLIC API - Postcode delivery lookup (for Shopify checkout)
+app.get('/api/public/delivery-options', (req, res) => {
+  const { postcode } = req.query;
+
+  if (!postcode) {
+    return res.status(400).json({
+      success: false,
+      error: 'postcode query parameter required',
+    });
+  }
+
+  // Mock data for Sydney postcodes
+  const sydneyPostcodes = {
+    '2000': { region_id: 1, region_name: 'Sydney Metro', suburb: 'Sydney CBD' },
+    '2150': { region_id: 1, region_name: 'Sydney Metro', suburb: 'Parramatta' },
+  };
+
+  // Mock data for Melbourne postcodes
+  const melbournePostcodes = {
+    '3000': { region_id: 2, region_name: 'Melbourne Metro', suburb: 'Melbourne CBD' },
+    '3141': { region_id: 2, region_name: 'Melbourne Metro', suburb: 'South Yarra' },
+  };
+
+  const allPostcodes = { ...sydneyPostcodes, ...melbournePostcodes };
+  const location = allPostcodes[postcode.toString()];
+
+  if (!location) {
+    return res.json({
+      success: false,
+      error: `Postcode ${postcode} not serviceable`,
+    });
+  }
+
+  // Mock schedules by region
+  const schedulesByRegion = {
+    1: [ // Sydney Metro - Thursday cutoff → Saturday pack → Sunday delivery
+      {
+        schedule_id: 1,
+        delivery_day: 'Sunday',
+        delivery_window: 'AM (12:00 AM - 7:00 AM)',
+        cutoff_info: 'Thursday 2 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 'Sunday'),
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 'Sunday')),
+      },
+    ],
+    2: [ // Melbourne Metro - Thursday cutoff → Friday pack → Friday delivery
+      {
+        schedule_id: 2,
+        delivery_day: 'Friday',
+        delivery_window: 'AM (12:00 AM - 7:00 AM)',
+        cutoff_info: 'Thursday 2 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 'Friday'),
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 'Friday')),
+      },
+      {
+        schedule_id: 3,
+        delivery_day: 'Friday',
+        delivery_window: 'Business Hours (8:00 AM - 6:00 PM)',
+        cutoff_info: 'Thursday 2 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 'Friday'),
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 'Friday')),
+      },
+    ],
+  };
+
+  const options = schedulesByRegion[location.region_id] || [];
+
+  res.json({
+    success: true,
+    suburb: location.suburb,
+    postcode: postcode,
+    region: {
+      id: location.region_id,
+      name: location.region_name,
+    },
+    delivery_options: options,
+    message: `${options.length} delivery option${options.length === 1 ? '' : 's'} available`,
+  });
+});
+
+// Helper functions
+function getNextDeliveryDate(cutoffDayStr, deliveryDayStr) {
+  const dayMap = {
+    'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4,
+    'Friday': 5, 'Saturday': 6, 'Sunday': 0,
+  };
+
+  const today = new Date();
+  const todayNum = today.getDay();
+  const cutoffNum = dayMap[cutoffDayStr];
+  const deliveryNum = dayMap[deliveryDayStr];
+
+  let daysToAdd = 0;
+  if (todayNum <= cutoffNum) {
+    daysToAdd = deliveryNum - todayNum;
+    if (daysToAdd <= 0) daysToAdd += 7;
+  } else {
+    daysToAdd = 7 - todayNum + deliveryNum;
+  }
+
+  const date = new Date(today);
+  date.setDate(date.getDate() + daysToAdd);
+  return date.toISOString().split('T')[0];
+}
+
+function formatDeliveryDate(dateStr) {
+  const date = new Date(dateStr + 'T00:00:00Z');
+  return date.toLocaleDateString('en-AU', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
 // Test endpoints - return hardcoded data
 app.get('/api/regions', (req, res) => {
   res.json({
@@ -39,7 +154,7 @@ app.get('/api/regions/:id', (req, res) => {
   const regionId = parseInt(req.params.id);
   const regions = {
     1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true, cutoff_time: '14:00', schedules: [
-      { id: 1, region_id: 1, cutoff_day: 'Friday', pack_day: 'Saturday', delivery_day: 'Monday', has_am: true, has_business_hours: false, enabled: true, is_default: true }
+      { id: 1, region_id: 1, cutoff_day: 'Thursday', pack_day: 'Saturday', delivery_day: 'Sunday', has_am: true, has_business_hours: false, enabled: true, is_default: true }
     ]},
     2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true, cutoff_time: '14:00', schedules: [
       { id: 2, region_id: 2, cutoff_day: 'Thursday', pack_day: 'Friday', delivery_day: 'Friday', has_am: true, has_business_hours: true, enabled: true, is_default: true }
