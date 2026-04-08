@@ -24,6 +24,36 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Test endpoint - return hardcoded data
+app.get('/api/regions', (req, res) => {
+  res.json({
+    data: [
+      { id: 1, name: 'Sydney Metro', code: 'SYD' },
+      { id: 2, name: 'Melbourne Metro', code: 'MEL' }
+    ]
+  });
+});
+
+app.get('/api/suburbs', (req, res) => {
+  res.json({
+    data: [
+      { id: 1, name: 'Sydney CBD', postcode: '2000', state: 'NSW', region_id: 1 },
+      { id: 2, name: 'Parramatta', postcode: '2150', state: 'NSW', region_id: 1 },
+      { id: 3, name: 'Melbourne CBD', postcode: '3000', state: 'VIC', region_id: 2 }
+    ]
+  });
+});
+
+app.get('/api/schedules', (req, res) => {
+  res.json({
+    data: [
+      { id: 1, region_id: 1, delivery_day: 'Monday', hours: 'AM' },
+      { id: 2, region_id: 1, delivery_day: 'Wednesday', hours: 'PM' },
+      { id: 3, region_id: 2, delivery_day: 'Friday', hours: 'AM' }
+    ]
+  });
+});
+
 // API Routes
 app.use('/api/regions', regionsRouter);
 app.use('/api/suburbs', suburbsRouter);
