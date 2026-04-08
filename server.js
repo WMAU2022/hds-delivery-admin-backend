@@ -38,12 +38,16 @@ app.get('/api/regions', (req, res) => {
 app.get('/api/regions/:id', (req, res) => {
   const regionId = parseInt(req.params.id);
   const regions = {
-    1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true },
-    2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true }
+    1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true, cutoff_time: '14:00', schedules: [
+      { id: 1, region_id: 1, cutoff_day: 'Friday', pack_day: 'Saturday', delivery_day: 'Monday', has_am: true, has_business_hours: false, enabled: true, is_default: true }
+    ]},
+    2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true, cutoff_time: '14:00', schedules: [
+      { id: 2, region_id: 2, cutoff_day: 'Thursday', pack_day: 'Friday', delivery_day: 'Friday', has_am: true, has_business_hours: true, enabled: true, is_default: true }
+    ]}
   };
   
   if (regions[regionId]) {
-    res.json(regions[regionId]);
+    res.json({ data: regions[regionId] });
   } else {
     res.status(404).json({ error: 'Region not found' });
   }
