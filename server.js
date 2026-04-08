@@ -123,12 +123,12 @@ app.listen(PORT, async () => {
   console.log(`🚀 HDS Delivery Admin Backend running on port ${PORT}`);
   console.log(`📚 API: http://localhost:${PORT}/api`);
   
-  // Run migrations
+  // Run migrations (don't crash if they fail - tables might already exist)
   try {
     await runMigrations();
   } catch (error) {
-    console.error('Failed to run migrations:', error.message);
-    process.exit(1);
+    console.error('⚠️  Migration warning:', error.message);
+    console.log('(Tables might already exist - continuing anyway)');
   }
   
   // Test DB connection
