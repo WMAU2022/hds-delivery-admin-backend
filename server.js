@@ -48,6 +48,9 @@ app.get('/api/public/delivery-options', (req, res) => {
   }
 
   // Define schedules by region
+  const sydneyNextDeliveryDate = getNextDeliveryDate('Thursday', 'Sunday');
+  const melbourneNextDeliveryDate = getNextDeliveryDate('Thursday', 'Friday');
+  
   const schedulesByRegion = {
     1: [ // Sydney Metro - Thursday cutoff → Saturday pack → Sunday delivery
       {
@@ -55,16 +58,16 @@ app.get('/api/public/delivery-options', (req, res) => {
         delivery_day: 'Sunday',
         delivery_window: 'AM (12:00 AM - 7:00 AM)',
         cutoff_info: 'Thursday 2:00 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 0), // 0 = Sunday
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 0)),
+        delivery_date: sydneyNextDeliveryDate,
+        formatted_date: formatDeliveryDate(sydneyNextDeliveryDate),
       },
       {
         schedule_id: 2,
         delivery_day: 'Sunday',
         delivery_window: 'Business Hours (8:00 AM - 6:00 PM)',
         cutoff_info: 'Thursday 2:00 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 0),
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 0)),
+        delivery_date: sydneyNextDeliveryDate,
+        formatted_date: formatDeliveryDate(sydneyNextDeliveryDate),
       },
     ],
     2: [ // Melbourne Metro - Thursday cutoff → Friday pack → Friday delivery
@@ -73,16 +76,16 @@ app.get('/api/public/delivery-options', (req, res) => {
         delivery_day: 'Friday',
         delivery_window: 'AM (12:00 AM - 7:00 AM)',
         cutoff_info: 'Thursday 2:00 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 5), // 5 = Friday
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 5)),
+        delivery_date: melbourneNextDeliveryDate,
+        formatted_date: formatDeliveryDate(melbourneNextDeliveryDate),
       },
       {
         schedule_id: 4,
         delivery_day: 'Friday',
         delivery_window: 'Business Hours (8:00 AM - 6:00 PM)',
         cutoff_info: 'Thursday 2:00 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 5),
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 5)),
+        delivery_date: melbourneNextDeliveryDate,
+        formatted_date: formatDeliveryDate(melbourneNextDeliveryDate),
       },
     ],
   };
