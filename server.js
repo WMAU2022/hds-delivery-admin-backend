@@ -172,29 +172,30 @@ app.get('/api/regions/:id', (req, res) => {
 });
 
 app.get('/api/suburbs', (req, res) => {
+  // Return all suburbs from the real data with auto-incrementing IDs
+  const suburbs = allSuburbs.map((suburb, index) => ({
+    id: index + 1,
+    ...suburb,
+    region_id: suburb.region_id
+  }));
+  
   res.json({
-    data: [
-      { id: 1, name: 'Sydney CBD', postcode: '2000', state: 'NSW', region_id: 1 },
-      { id: 2, name: 'Parramatta', postcode: '2150', state: 'NSW', region_id: 1 },
-      { id: 3, name: 'Melbourne CBD', postcode: '3000', state: 'VIC', region_id: 2 }
-    ]
+    data: suburbs
   });
 });
 
 // Get suburbs for region
 app.get('/api/regions/:id/suburbs', (req, res) => {
   const regionId = parseInt(req.params.id);
-  const suburbs = {
-    1: [
-      { id: 1, name: 'Sydney CBD', postcode: '2000', state: 'NSW', region_id: 1 },
-      { id: 2, name: 'Parramatta', postcode: '2150', state: 'NSW', region_id: 1 }
-    ],
-    2: [
-      { id: 3, name: 'Melbourne CBD', postcode: '3000', state: 'VIC', region_id: 2 }
-    ]
-  };
+  // Filter suburbs by region
+  const suburbsForRegion = allSuburbs
+    .filter(s => s.region_id === regionId)
+    .map((suburb, index) => ({
+      id: index + 1,
+      ...suburb
+    }));
   
-  res.json({ data: suburbs[regionId] || [] });
+  res.json({ data: suburbsForRegion });
 });
 
 // Get schedules for region
