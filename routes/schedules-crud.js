@@ -100,7 +100,17 @@ router.post('/', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating schedule:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      constraint: error.constraint,
+      detail: error.detail,
+      toString: error.toString()
+    });
+    res.status(500).json({ 
+      error: error.message || error.toString() || 'Unknown error', 
+      code: error.code 
+    });
   }
 });
 
