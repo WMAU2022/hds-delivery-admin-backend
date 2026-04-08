@@ -8,6 +8,7 @@ const { allSuburbs } = require('./lib/suburbs-data');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
+const schedulesCrudRouter = require('./routes/schedules-crud');
 const syncRouter = require('./routes/sync');
 const blackoutRouter = require('./routes/blackout');
 const publicRouter = require('./routes/public');
@@ -198,66 +199,25 @@ app.get('/api/regions/:id/suburbs', (req, res) => {
   res.json({ data: suburbsForRegion });
 });
 
-// Get schedules for region
-app.get('/api/regions/:id/schedules', (req, res) => {
-  const regionId = parseInt(req.params.id);
-  const schedules = {
-    1: [
-      { id: 1, region_id: 1, delivery_day: 'Monday', hours: 'AM' },
-      { id: 2, region_id: 1, delivery_day: 'Wednesday', hours: 'PM' }
-    ],
-    2: [
-      { id: 3, region_id: 2, delivery_day: 'Friday', hours: 'AM' }
-    ]
-  };
-  
-  res.json({ data: schedules[regionId] || [] });
+// Get schedules for region - uses real database
+app.get('/api/regions/:id/schedules', async (req, res) => {
+  try {
+    const regionId = parseInt(req.params.id);
+    const result = await pool.query(
+      'SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY delivery_day',
+      [regionId]
+    );
+    res.json({ data: result.rows });
+  } catch (error) {
+    console.error('Error fetching region schedules:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.get('/api/schedules', (req, res) => {
-  res.json({
-    data: [
-      { id: 1, region_id: 1, delivery_day: 'Monday', hours: 'AM' },
-      { id: 2, region_id: 1, delivery_day: 'Wednesday', hours: 'PM' },
-      { id: 3, region_id: 2, delivery_day: 'Friday', hours: 'AM' }
-    ]
-  });
-});
+// GET /api/schedules is now handled by schedulesCrudRouter above
 
-// Mock POST for creating new schedules
-app.post('/api/schedules', (req, res) => {
-  const newSchedule = {
-    id: Math.floor(Math.random() * 10000),
-    ...req.body,
-    enabled: true,
-    is_default: false
-  };
-  // Return the schedule directly, not wrapped in data
-  res.status(201).json(newSchedule);
-});
-
-// Mock PUT endpoints for schedule updates (for admin dashboard)
-app.put('/api/schedules/:id', (req, res) => {
-  res.json({ id: parseInt(req.params.id), ...req.body });
-});
-
-app.put('/api/schedules/:id/toggle', (req, res) => {
-  res.json({ id: parseInt(req.params.id), enabled: true });
-});
-
-app.put('/api/schedules/:regionId/set-default/:scheduleId', (req, res) => {
-  res.json({ success: true });
-});
-
-// Mock PUT for region updates
-app.put('/api/regions/:id', (req, res) => {
-  res.json({ id: parseInt(req.params.id), ...req.body });
-});
-
-// Mock DELETE for schedules
-app.delete('/api/schedules/:id', (req, res) => {
-  res.status(204).json({});
-});
+// Use real CRUD routes for schedules
+app.use('/api/schedules', schedulesCrudRouter);
 
 // API Routes
 app.use('/api/regions', regionsRouter);
