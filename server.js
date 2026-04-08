@@ -206,15 +206,12 @@ app.get('/api/regions/:id/suburbs', (req, res) => {
   res.json({ data: suburbsForRegion });
 });
 
-// Get schedules for region - uses real database
-app.get('/api/regions/:id/schedules', async (req, res) => {
+// Get schedules for region - uses memory store
+app.get('/api/regions/:id/schedules', (req, res) => {
   try {
     const regionId = parseInt(req.params.id);
-    const result = await pool.query(
-      'SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY delivery_day',
-      [regionId]
-    );
-    res.json({ data: result.rows });
+    const schedules = store.getByRegion(regionId);
+    res.json({ data: schedules });
   } catch (error) {
     console.error('Error fetching region schedules:', error);
     res.status(500).json({ error: error.message });
