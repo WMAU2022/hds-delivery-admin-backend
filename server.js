@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const pool = require('./lib/db');
 const hdsSync = require('./jobs/hds-sync');
 const { allSuburbs } = require('./lib/suburbs-data');
+const store = require('./lib/memory-store');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
@@ -156,17 +157,17 @@ app.get('/api/regions', (req, res) => {
 // Get single region detail
 app.get('/api/regions/:id', (req, res) => {
   const regionId = parseInt(req.params.id);
+  
+  // Hardcoded region data
   const regions = {
-    1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true, cutoff_time: '14:00', schedules: [
-      { id: 1, region_id: 1, cutoff_day: 'Thursday', pack_day: 'Saturday', delivery_day: 'Sunday', has_am: true, has_business_hours: false, enabled: true, is_default: true }
-    ]},
-    2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true, cutoff_time: '14:00', schedules: [
-      { id: 2, region_id: 2, cutoff_day: 'Thursday', pack_day: 'Friday', delivery_day: 'Friday', has_am: true, has_business_hours: true, enabled: true, is_default: true }
-    ]}
+    1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true, cutoff_time: '14:00' },
+    2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true, cutoff_time: '14:00' }
   };
   
   if (regions[regionId]) {
-    res.json({ data: regions[regionId] });
+    // Get schedules for this region from memory store
+    const schedules = store.getByRegion(regionId);
+    res.json({ data: { ...regions[regionId], schedules } });
   } else {
     res.status(404).json({ error: 'Region not found' });
   }
