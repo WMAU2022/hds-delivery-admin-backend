@@ -105,6 +105,16 @@ app.get('/api/schedules', (req, res) => {
   });
 });
 
+// Mock POST for creating new schedules
+app.post('/api/schedules', (req, res) => {
+  const newSchedule = {
+    id: Math.floor(Math.random() * 10000),
+    ...req.body,
+    enabled: true
+  };
+  res.json({ data: newSchedule });
+});
+
 // Mock PUT endpoints for schedule updates (for admin dashboard)
 app.put('/api/schedules/:id', (req, res) => {
   res.json({ data: { id: parseInt(req.params.id), ...req.body } });
@@ -121,6 +131,11 @@ app.put('/api/schedules/:regionId/set-default/:scheduleId', (req, res) => {
 // Mock PUT for region updates
 app.put('/api/regions/:id', (req, res) => {
   res.json({ data: { id: parseInt(req.params.id), ...req.body } });
+});
+
+// Mock DELETE for schedules
+app.delete('/api/schedules/:id', (req, res) => {
+  res.json({ success: true });
 });
 
 // API Routes
