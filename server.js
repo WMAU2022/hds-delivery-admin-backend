@@ -4,6 +4,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const pool = require('./lib/db');
 const hdsSync = require('./jobs/hds-sync');
+const { allSuburbs } = require('./lib/suburbs-data');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
@@ -25,6 +26,7 @@ app.get('/health', (req, res) => {
 });
 
 // PUBLIC API - Postcode delivery lookup (for Shopify checkout)
+// Production-grade endpoint with comprehensive Sydney & Melbourne suburbs
 app.get('/api/public/delivery-options', (req, res) => {
   const { postcode } = req.query;
 
@@ -35,20 +37,8 @@ app.get('/api/public/delivery-options', (req, res) => {
     });
   }
 
-  // Mock data for Sydney postcodes
-  const sydneyPostcodes = {
-    '2000': { region_id: 1, region_name: 'Sydney Metro', suburb: 'Sydney CBD' },
-    '2150': { region_id: 1, region_name: 'Sydney Metro', suburb: 'Parramatta' },
-  };
-
-  // Mock data for Melbourne postcodes
-  const melbournePostcodes = {
-    '3000': { region_id: 2, region_name: 'Melbourne Metro', suburb: 'Melbourne CBD' },
-    '3141': { region_id: 2, region_name: 'Melbourne Metro', suburb: 'South Yarra' },
-  };
-
-  const allPostcodes = { ...sydneyPostcodes, ...melbournePostcodes };
-  const location = allPostcodes[postcode.toString()];
+  // Find suburb by postcode from real data
+  const location = allSuburbs.find(s => s.postcode === postcode.toString());
 
   if (!location) {
     return res.json({
@@ -57,50 +47,60 @@ app.get('/api/public/delivery-options', (req, res) => {
     });
   }
 
-  // Mock schedules by region
+  // Define schedules by region
   const schedulesByRegion = {
     1: [ // Sydney Metro - Thursday cutoff → Saturday pack → Sunday delivery
       {
         schedule_id: 1,
         delivery_day: 'Sunday',
         delivery_window: 'AM (12:00 AM - 7:00 AM)',
-        cutoff_info: 'Thursday 2 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 'Sunday'),
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 'Sunday')),
+        cutoff_info: 'Thursday 2:00 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 0), // 0 = Sunday
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 0)),
+      },
+      {
+        schedule_id: 2,
+        delivery_day: 'Sunday',
+        delivery_window: 'Business Hours (8:00 AM - 6:00 PM)',
+        cutoff_info: 'Thursday 2:00 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 0),
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 0)),
       },
     ],
     2: [ // Melbourne Metro - Thursday cutoff → Friday pack → Friday delivery
       {
-        schedule_id: 2,
-        delivery_day: 'Friday',
-        delivery_window: 'AM (12:00 AM - 7:00 AM)',
-        cutoff_info: 'Thursday 2 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 'Friday'),
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 'Friday')),
-      },
-      {
         schedule_id: 3,
         delivery_day: 'Friday',
+        delivery_window: 'AM (12:00 AM - 7:00 AM)',
+        cutoff_info: 'Thursday 2:00 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 5), // 5 = Friday
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 5)),
+      },
+      {
+        schedule_id: 4,
+        delivery_day: 'Friday',
         delivery_window: 'Business Hours (8:00 AM - 6:00 PM)',
-        cutoff_info: 'Thursday 2 PM',
-        delivery_date: getNextDeliveryDate('Thursday', 'Friday'),
-        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 'Friday')),
+        cutoff_info: 'Thursday 2:00 PM',
+        delivery_date: getNextDeliveryDate('Thursday', 5),
+        formatted_date: formatDeliveryDate(getNextDeliveryDate('Thursday', 5)),
       },
     ],
   };
 
+  const region_names = { 1: 'Sydney Metro', 2: 'Melbourne Metro' };
   const options = schedulesByRegion[location.region_id] || [];
 
   res.json({
     success: true,
     suburb: location.suburb,
-    postcode: postcode,
+    postcode: location.postcode,
+    state: location.state,
     region: {
       id: location.region_id,
-      name: location.region_name,
+      name: region_names[location.region_id] || 'Unknown Region',
     },
     delivery_options: options,
-    message: `${options.length} delivery option${options.length === 1 ? '' : 's'} available`,
+    message: `${options.length} delivery option${options.length === 1 ? '' : 's'} available for ${location.suburb}`,
   });
 });
 
