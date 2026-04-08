@@ -228,18 +228,20 @@ app.post('/api/schedules', (req, res) => {
   const newSchedule = {
     id: Math.floor(Math.random() * 10000),
     ...req.body,
-    enabled: true
+    enabled: true,
+    is_default: false
   };
-  res.json({ data: newSchedule });
+  // Return the schedule directly, not wrapped in data
+  res.status(201).json(newSchedule);
 });
 
 // Mock PUT endpoints for schedule updates (for admin dashboard)
 app.put('/api/schedules/:id', (req, res) => {
-  res.json({ data: { id: parseInt(req.params.id), ...req.body } });
+  res.json({ id: parseInt(req.params.id), ...req.body });
 });
 
 app.put('/api/schedules/:id/toggle', (req, res) => {
-  res.json({ data: { id: parseInt(req.params.id), enabled: true } });
+  res.json({ id: parseInt(req.params.id), enabled: true });
 });
 
 app.put('/api/schedules/:regionId/set-default/:scheduleId', (req, res) => {
@@ -248,12 +250,12 @@ app.put('/api/schedules/:regionId/set-default/:scheduleId', (req, res) => {
 
 // Mock PUT for region updates
 app.put('/api/regions/:id', (req, res) => {
-  res.json({ data: { id: parseInt(req.params.id), ...req.body } });
+  res.json({ id: parseInt(req.params.id), ...req.body });
 });
 
 // Mock DELETE for schedules
 app.delete('/api/schedules/:id', (req, res) => {
-  res.json({ success: true });
+  res.status(204).json({});
 });
 
 // API Routes
