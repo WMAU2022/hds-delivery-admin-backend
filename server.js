@@ -166,7 +166,7 @@ function formatDeliveryDate(dateStr) {
 
 // GET /api/schedules is now handled by schedulesCrudRouter above
 
-// Use real CRUD routes for schedules
+// Use real CRUD routes for schedules (in-memory store only)
 app.use('/api/schedules', schedulesCrudRouter);
 
 // Webhooks (Shopify integration - no auth required, signature verified)
@@ -175,7 +175,8 @@ app.use('/webhooks', webhooksRouter);
 // API Routes
 app.use('/api/regions', regionsRouter);
 app.use('/api/suburbs', suburbsRouter);
-app.use('/api/schedules', schedulesRouter);
+// NOTE: schedulesRouter removed - it requires PostgreSQL which is not available
+// All schedule operations use in-memory store via schedulesCrudRouter above
 app.use('/api/sync', syncRouter);
 app.use('/api/blackout-dates', blackoutRouter);
 
