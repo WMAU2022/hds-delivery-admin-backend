@@ -3,21 +3,18 @@ const router = express.Router();
 const regionsStore = require('../lib/regions-store');
 const scheduleStore = require('../lib/memory-store');
 
+// ⚠️ BULK ROUTES FIRST - must come before /:id to avoid pattern matching issues
+
 /**
  * POST /api/regions/bulk/toggle
- * Toggle multiple regions at once
- * ⚠️ Must come BEFORE /:id route to avoid matching conflicts
  */
 router.post('/bulk/toggle', async (req, res) => {
   try {
     const { ids } = req.body;
-
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-
     const updated = regionsStore.toggleMultiple(ids);
-
     res.json({
       success: true,
       data: updated,
@@ -32,18 +29,14 @@ router.post('/bulk/toggle', async (req, res) => {
 
 /**
  * POST /api/regions/bulk/enable
- * Enable multiple regions
  */
 router.post('/bulk/enable', async (req, res) => {
   try {
     const { ids } = req.body;
-
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-
     const updated = regionsStore.enableMultiple(ids);
-
     res.json({
       success: true,
       data: updated,
@@ -58,18 +51,14 @@ router.post('/bulk/enable', async (req, res) => {
 
 /**
  * POST /api/regions/bulk/disable
- * Disable multiple regions
  */
 router.post('/bulk/disable', async (req, res) => {
   try {
     const { ids } = req.body;
-
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-
     const updated = regionsStore.disableMultiple(ids);
-
     res.json({
       success: true,
       data: updated,
@@ -82,20 +71,18 @@ router.post('/bulk/disable', async (req, res) => {
   }
 });
 
+// ⚠️ NOW THE DETAIL ROUTES
+
 /**
  * GET /api/regions
- * List all regions with their delivery schedules
  */
 router.get('/', async (req, res) => {
   try {
     const allRegions = regionsStore.getAll();
-    
-    // Add schedules to each region
     const regionsWithSchedules = allRegions.map(region => ({
       ...region,
       schedules: scheduleStore.getByRegion(region.id),
     }));
-
     res.json({
       success: true,
       data: regionsWithSchedules,
@@ -109,7 +96,6 @@ router.get('/', async (req, res) => {
 
 /**
  * GET /api/regions/:id
- * Get single region with all details
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -121,7 +107,6 @@ router.get('/:id', async (req, res) => {
     }
 
     const schedules = scheduleStore.getByRegion(id);
-
     res.json({
       success: true,
       data: {
@@ -136,8 +121,26 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
+ * GET /api/regions/:id/schedules
+ * Frontend requests this endpoint to get schedules for a region
+ */
+router.get('/:id/schedules', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const schedules = scheduleStore.getByRegion(id);
+    res.json({
+      success: true,
+      data: schedules,
+      count: schedules.length,
+    });
+  } catch (error) {
+    console.error('GET /regions/:id/schedules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * PUT /api/regions/:id/toggle
- * Toggle region enabled/disabled
  */
 router.put('/:id/toggle', async (req, res) => {
   try {
@@ -162,7 +165,6 @@ router.put('/:id/toggle', async (req, res) => {
 
 /**
  * PUT /api/regions/:id/enable
- * Enable region
  */
 router.put('/:id/enable', async (req, res) => {
   try {
@@ -186,7 +188,6 @@ router.put('/:id/enable', async (req, res) => {
 
 /**
  * PUT /api/regions/:id/disable
- * Disable region
  */
 router.put('/:id/disable', async (req, res) => {
   try {
