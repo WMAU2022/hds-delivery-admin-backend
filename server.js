@@ -424,4 +424,4 @@ app.listen(PORT, async () => {
 });
 
 module.exports = app;
-// Force redeploy Wed Apr  8 15:08:28 AEST 2026
+// Force redeploy Mon Apr 14 14:11:00 AEST 2026 - 27 regions fix
