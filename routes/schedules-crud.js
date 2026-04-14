@@ -73,7 +73,7 @@ router.post('/', (req, res) => {
       is_default,
     });
 
-    res.status(201).json(schedule);
+    res.status(201).json({ success: true, data: schedule });
   } catch (error) {
     console.error('Error creating schedule:', error);
     res.status(500).json({ error: error.message || 'Unknown error' });
@@ -91,7 +91,7 @@ router.put('/:id', (req, res) => {
     if (!schedule) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
-    res.json(schedule);
+    res.json({ success: true, data: schedule });
   } catch (error) {
     console.error('Error updating schedule:', error);
     res.status(500).json({ error: error.message });
@@ -109,7 +109,7 @@ router.put('/:id/toggle', (req, res) => {
       return res.status(404).json({ error: 'Schedule not found' });
     }
     const schedule = store.update(req.params.id, { enabled: !current.enabled });
-    res.json(schedule);
+    res.json({ success: true, data: schedule });
   } catch (error) {
     console.error('Error toggling schedule:', error);
     res.status(500).json({ error: error.message });
