@@ -13,12 +13,26 @@ const schedulesCrudRouter = require('./routes/schedules-crud');
 const syncRouter = require('./routes/sync');
 const blackoutRouter = require('./routes/blackout');
 const publicRouter = require('./routes/public');
+const webhooksRouter = require('./routes/webhooks');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
+
+// Capture raw body for webhook signature verification (before bodyParser)
+app.use((req, res, next) => {
+  let rawBody = '';
+  req.on('data', chunk => {
+    rawBody += chunk.toString('utf8');
+  });
+  req.on('end', () => {
+    req.rawBody = rawBody;
+    next();
+  });
+});
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -222,6 +236,9 @@ app.get('/api/regions/:id/schedules', (req, res) => {
 
 // Use real CRUD routes for schedules
 app.use('/api/schedules', schedulesCrudRouter);
+
+// Webhooks (Shopify integration - no auth required, signature verified)
+app.use('/webhooks', webhooksRouter);
 
 // API Routes
 app.use('/api/regions', regionsRouter);

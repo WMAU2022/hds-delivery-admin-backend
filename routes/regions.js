@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../lib/db');
+const regionsStore = require('../lib/regions-store');
+const scheduleStore = require('../lib/memory-store');
 
 /**
  * GET /api/regions
@@ -8,29 +9,18 @@ const pool = require('../lib/db');
  */
 router.get('/', async (req, res) => {
   try {
-    const regions = await pool.query(`
-      SELECT r.*, 
-        JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'id', ds.id,
-            'cutoff_day', ds.cutoff_day,
-            'pack_day', ds.pack_day,
-            'delivery_day', ds.delivery_day,
-            'hours', ds.hours,
-            'enabled', ds.enabled,
-            'is_default', ds.is_default
-          ) ORDER BY ds.id
-        ) FILTER (WHERE ds.id IS NOT NULL) as schedules
-      FROM regions r
-      LEFT JOIN delivery_schedules ds ON r.id = ds.region_id
-      GROUP BY r.id
-      ORDER BY r.name ASC
-    `);
+    const allRegions = regionsStore.getAll();
+    
+    // Add schedules to each region
+    const regionsWithSchedules = allRegions.map(region => ({
+      ...region,
+      schedules: scheduleStore.getByRegion(region.id),
+    }));
 
     res.json({
       success: true,
-      data: regions.rows,
-      count: regions.rows.length,
+      data: regionsWithSchedules,
+      count: regionsWithSchedules.length,
     });
   } catch (error) {
     console.error('GET /regions error:', error);
@@ -45,26 +35,19 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const region = regionsStore.getById(id);
 
-    const region = await pool.query(
-      `SELECT * FROM regions WHERE id = $1`,
-      [id]
-    );
-
-    if (region.rows.length === 0) {
+    if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
-    const schedules = await pool.query(
-      `SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY id`,
-      [id]
-    );
+    const schedules = scheduleStore.getByRegion(id);
 
     res.json({
       success: true,
       data: {
-        ...region.rows[0],
-        schedules: schedules.rows,
+        ...region,
+        schedules: schedules,
       },
     });
   } catch (error) {
@@ -80,21 +63,17 @@ router.get('/:id', async (req, res) => {
 router.put('/:id/toggle', async (req, res) => {
   try {
     const { id } = req.params;
+    const region = regionsStore.toggle(id);
 
-    const result = await pool.query(
-      `UPDATE regions SET enabled = NOT enabled, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1 RETURNING *`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
+    if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
+    console.log(`✅ Region ${id} toggled to ${region.enabled ? 'enabled' : 'disabled'}`);
     res.json({
       success: true,
-      data: result.rows[0],
-      message: `Region ${result.rows[0].enabled ? 'enabled' : 'disabled'}`,
+      data: region,
+      message: `Region ${region.enabled ? 'enabled' : 'disabled'}`,
     });
   } catch (error) {
     console.error('PUT /regions/:id/toggle error:', error);
@@ -109,20 +88,15 @@ router.put('/:id/toggle', async (req, res) => {
 router.put('/:id/enable', async (req, res) => {
   try {
     const { id } = req.params;
+    const region = regionsStore.enable(id);
 
-    const result = await pool.query(
-      `UPDATE regions SET enabled = true, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1 RETURNING *`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
+    if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
     res.json({
       success: true,
-      data: result.rows[0],
+      data: region,
       message: 'Region enabled',
     });
   } catch (error) {
@@ -138,20 +112,15 @@ router.put('/:id/enable', async (req, res) => {
 router.put('/:id/disable', async (req, res) => {
   try {
     const { id } = req.params;
+    const region = regionsStore.disable(id);
 
-    const result = await pool.query(
-      `UPDATE regions SET enabled = false, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1 RETURNING *`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
+    if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
     res.json({
       success: true,
-      data: result.rows[0],
+      data: region,
       message: 'Region disabled',
     });
   } catch (error) {
@@ -172,17 +141,13 @@ router.post('/bulk/toggle', async (req, res) => {
       return res.status(400).json({ error: 'ids array required' });
     }
 
-    const result = await pool.query(
-      `UPDATE regions SET enabled = NOT enabled, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ANY($1) RETURNING *`,
-      [ids]
-    );
+    const updated = regionsStore.toggleMultiple(ids);
 
     res.json({
       success: true,
-      data: result.rows,
-      updated: result.rows.length,
-      message: `${result.rows.length} regions toggled`,
+      data: updated,
+      updated: updated.length,
+      message: `${updated.length} regions toggled`,
     });
   } catch (error) {
     console.error('POST /regions/bulk/toggle error:', error);
@@ -202,17 +167,13 @@ router.post('/bulk/enable', async (req, res) => {
       return res.status(400).json({ error: 'ids array required' });
     }
 
-    const result = await pool.query(
-      `UPDATE regions SET enabled = true, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ANY($1) RETURNING *`,
-      [ids]
-    );
+    const updated = regionsStore.enableMultiple(ids);
 
     res.json({
       success: true,
-      data: result.rows,
-      updated: result.rows.length,
-      message: `${result.rows.length} regions enabled`,
+      data: updated,
+      updated: updated.length,
+      message: `${updated.length} regions enabled`,
     });
   } catch (error) {
     console.error('POST /regions/bulk/enable error:', error);
@@ -232,17 +193,13 @@ router.post('/bulk/disable', async (req, res) => {
       return res.status(400).json({ error: 'ids array required' });
     }
 
-    const result = await pool.query(
-      `UPDATE regions SET enabled = false, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ANY($1) RETURNING *`,
-      [ids]
-    );
+    const updated = regionsStore.disableMultiple(ids);
 
     res.json({
       success: true,
-      data: result.rows,
-      updated: result.rows.length,
-      message: `${result.rows.length} regions disabled`,
+      data: updated,
+      updated: updated.length,
+      message: `${updated.length} regions disabled`,
     });
   } catch (error) {
     console.error('POST /regions/bulk/disable error:', error);
