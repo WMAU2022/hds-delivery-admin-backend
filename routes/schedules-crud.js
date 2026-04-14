@@ -62,11 +62,16 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // Convert day names to numbers if needed
+    const cutoffDayNum = convertDayToNumber(cutoff_day);
+    const packDayNum = convertDayToNumber(pack_day);
+    const deliveryDayNum = convertDayToNumber(delivery_day);
+
     const schedule = store.create({
       region_id,
-      cutoff_day,
-      pack_day,
-      delivery_day,
+      cutoff_day: cutoffDayNum,
+      pack_day: packDayNum,
+      delivery_day: deliveryDayNum,
       hours: hours || 'AM',
       enabled,
       is_default,
@@ -85,7 +90,20 @@ router.post('/', (req, res) => {
  */
 router.put('/:id', (req, res) => {
   try {
-    const schedule = store.update(req.params.id, req.body);
+    const updateData = { ...req.body };
+    
+    // Convert day names to numbers if they exist
+    if (updateData.cutoff_day !== undefined) {
+      updateData.cutoff_day = convertDayToNumber(updateData.cutoff_day);
+    }
+    if (updateData.pack_day !== undefined) {
+      updateData.pack_day = convertDayToNumber(updateData.pack_day);
+    }
+    if (updateData.delivery_day !== undefined) {
+      updateData.delivery_day = convertDayToNumber(updateData.delivery_day);
+    }
+    
+    const schedule = store.update(req.params.id, updateData);
     if (!schedule) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
