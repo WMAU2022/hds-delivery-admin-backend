@@ -160,79 +160,8 @@ function formatDeliveryDate(dateStr) {
   });
 }
 
-// Test endpoints - return hardcoded data
-app.get('/api/regions', (req, res) => {
-  res.json({
-    data: [
-      { id: 1, name: 'Sydney Metro', code: 'SYD' },
-      { id: 2, name: 'Melbourne Metro', code: 'MEL' }
-    ]
-  });
-});
-
-// Get single region detail
-app.get('/api/regions/:id', (req, res) => {
-  const regionId = parseInt(req.params.id);
-  
-  // Hardcoded region data
-  const regions = {
-    1: { id: 1, name: 'Sydney Metro', code: 'SYD', enabled: true, cutoff_time: '14:00' },
-    2: { id: 2, name: 'Melbourne Metro', code: 'MEL', enabled: true, cutoff_time: '14:00' }
-  };
-  
-  if (regions[regionId]) {
-    // Get schedules for this region from memory store
-    const schedules = store.getByRegion(regionId);
-    res.json({ data: { ...regions[regionId], schedules } });
-  } else {
-    res.status(404).json({ error: 'Region not found' });
-  }
-});
-
-app.get('/api/suburbs', (req, res) => {
-  // Return all suburbs from the real data with auto-incrementing IDs
-  // Map 'suburb' field to 'name' for frontend compatibility
-  const suburbs = allSuburbs.map((suburb, index) => ({
-    id: index + 1,
-    name: suburb.suburb,  // Frontend expects 'name', not 'suburb'
-    postcode: suburb.postcode,
-    state: suburb.state,
-    region_id: suburb.region_id
-  }));
-  
-  res.json({
-    data: suburbs
-  });
-});
-
-// Get suburbs for region
-app.get('/api/regions/:id/suburbs', (req, res) => {
-  const regionId = parseInt(req.params.id);
-  // Filter suburbs by region - map 'suburb' field to 'name' for frontend
-  const suburbsForRegion = allSuburbs
-    .filter(s => s.region_id === regionId)
-    .map((suburb, index) => ({
-      id: index + 1,
-      name: suburb.suburb,  // Frontend expects 'name'
-      postcode: suburb.postcode,
-      state: suburb.state,
-      region_id: suburb.region_id
-    }));
-  
-  res.json({ data: suburbsForRegion });
-});
-
-// Get schedules for region - uses memory store
-app.get('/api/regions/:id/schedules', (req, res) => {
-  try {
-    const regionId = parseInt(req.params.id);
-    const schedules = store.getByRegion(regionId);
-    res.json({ data: schedules });
-  } catch (error) {
-    console.error('Error fetching region schedules:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// NOTE: All /api/regions and /api/suburbs endpoints are now handled by routers below.
+// Hardcoded test endpoints removed to use in-memory store (regionsStore, suburbsStore)
 
 // GET /api/schedules is now handled by schedulesCrudRouter above
 
