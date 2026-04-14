@@ -352,18 +352,19 @@ app.listen(PORT, async () => {
   hdsSuburbsSync.initSchedule();
   console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)');
   
-  // If suburbs store is empty, trigger initial HDS sync
-  const suburbStats = suburbsStore.getStats();
+  // If suburbs store is empty, load seed data
+  let suburbStats = suburbsStore.getStats();
   if (suburbStats.total === 0) {
-    console.log('📍 Suburbs store is empty - triggering initial HDS sync...');
-    hdsSuburbsSync.syncSuburbsFromHDS().then(() => {
-      const stats = suburbsStore.getStats();
-      console.log(`✅ Initial sync complete: ${stats.total} suburbs loaded`);
-    }).catch(err => {
-      console.error('❌ Initial sync failed:', err.message);
+    console.log('📍 Suburbs store is empty - loading seed data...');
+    const suburbsSeed = require('./lib/suburbs-seed');
+    suburbsSeed.forEach(suburb => {
+      suburbsStore.create(suburb);
     });
+    suburbStats = suburbsStore.getStats();
+    console.log(`✅ Seed data loaded: ${suburbStats.total} suburbs ready`);
+    console.log('   Serviceable: ' + suburbStats.serviceable);
   } else {
-    console.log(`📍 Suburbs store ready: ${suburbStats.total} suburbs loaded`);
+    console.log(`📍 Suburbs store ready: ${suburbStats.total} suburbs`);
   }
 });
 
