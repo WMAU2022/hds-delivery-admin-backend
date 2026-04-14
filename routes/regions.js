@@ -4,6 +4,85 @@ const regionsStore = require('../lib/regions-store');
 const scheduleStore = require('../lib/memory-store');
 
 /**
+ * POST /api/regions/bulk/toggle
+ * Toggle multiple regions at once
+ * ⚠️ Must come BEFORE /:id route to avoid matching conflicts
+ */
+router.post('/bulk/toggle', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array required' });
+    }
+
+    const updated = regionsStore.toggleMultiple(ids);
+
+    res.json({
+      success: true,
+      data: updated,
+      updated: updated.length,
+      message: `${updated.length} regions toggled`,
+    });
+  } catch (error) {
+    console.error('POST /regions/bulk/toggle error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/regions/bulk/enable
+ * Enable multiple regions
+ */
+router.post('/bulk/enable', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array required' });
+    }
+
+    const updated = regionsStore.enableMultiple(ids);
+
+    res.json({
+      success: true,
+      data: updated,
+      updated: updated.length,
+      message: `${updated.length} regions enabled`,
+    });
+  } catch (error) {
+    console.error('POST /regions/bulk/enable error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/regions/bulk/disable
+ * Disable multiple regions
+ */
+router.post('/bulk/disable', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array required' });
+    }
+
+    const updated = regionsStore.disableMultiple(ids);
+
+    res.json({
+      success: true,
+      data: updated,
+      updated: updated.length,
+      message: `${updated.length} regions disabled`,
+    });
+  } catch (error) {
+    console.error('POST /regions/bulk/disable error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/regions
  * List all regions with their delivery schedules
  */
@@ -125,84 +204,6 @@ router.put('/:id/disable', async (req, res) => {
     });
   } catch (error) {
     console.error('PUT /regions/:id/disable error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/regions/bulk/toggle
- * Toggle multiple regions at once
- */
-router.post('/bulk/toggle', async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'ids array required' });
-    }
-
-    const updated = regionsStore.toggleMultiple(ids);
-
-    res.json({
-      success: true,
-      data: updated,
-      updated: updated.length,
-      message: `${updated.length} regions toggled`,
-    });
-  } catch (error) {
-    console.error('POST /regions/bulk/toggle error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/regions/bulk/enable
- * Enable multiple regions
- */
-router.post('/bulk/enable', async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'ids array required' });
-    }
-
-    const updated = regionsStore.enableMultiple(ids);
-
-    res.json({
-      success: true,
-      data: updated,
-      updated: updated.length,
-      message: `${updated.length} regions enabled`,
-    });
-  } catch (error) {
-    console.error('POST /regions/bulk/enable error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/regions/bulk/disable
- * Disable multiple regions
- */
-router.post('/bulk/disable', async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'ids array required' });
-    }
-
-    const updated = regionsStore.disableMultiple(ids);
-
-    res.json({
-      success: true,
-      data: updated,
-      updated: updated.length,
-      message: `${updated.length} regions disabled`,
-    });
-  } catch (error) {
-    console.error('POST /regions/bulk/disable error:', error);
     res.status(500).json({ error: error.message });
   }
 });
