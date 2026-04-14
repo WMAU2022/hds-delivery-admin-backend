@@ -4,8 +4,10 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const pool = require('./lib/db');
 const hdsSync = require('./jobs/hds-sync');
+const hdsSuburbsSync = require('./jobs/hds-sync-suburbs');
 const { allSuburbs } = require('./lib/suburbs-data');
 const store = require('./lib/memory-store');
+const suburbsStore = require('./lib/suburbs-sync-store');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
@@ -412,9 +414,13 @@ app.listen(PORT, async () => {
     console.error('❌ Database connection failed:', error.message);
   }
 
-  // Initialize HDS sync job (runs daily at 2 AM)
+  // Initialize HDS sync jobs
   hdsSync.initSchedule();
   console.log('⏰ HDS sync scheduled (daily at 2 AM)');
+  
+  // Initialize HDS suburbs sync job (runs daily at 3 AM)
+  hdsSuburbsSync.initSchedule();
+  console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)');
 });
 
 module.exports = app;
