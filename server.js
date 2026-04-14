@@ -4,10 +4,11 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const pool = require('./lib/db');
 const hdsSync = require('./jobs/hds-sync');
-const hdsSuburbsSync = require('./jobs/hds-sync-suburbs');
+
 const { allSuburbs } = require('./lib/suburbs-data');
 const store = require('./lib/memory-store');
 const suburbsStore = require('./lib/suburbs-sync-store');
+const hdsSuburbsSync = require('./jobs/hds-sync-suburbs');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
@@ -350,6 +351,20 @@ app.listen(PORT, async () => {
   // Initialize HDS suburbs sync job (runs daily at 3 AM)
   hdsSuburbsSync.initSchedule();
   console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)');
+  
+  // If suburbs store is empty, trigger initial HDS sync
+  const suburbStats = suburbsStore.getStats();
+  if (suburbStats.total === 0) {
+    console.log('📍 Suburbs store is empty - triggering initial HDS sync...');
+    hdsSuburbsSync.syncSuburbsFromHDS().then(() => {
+      const stats = suburbsStore.getStats();
+      console.log(`✅ Initial sync complete: ${stats.total} suburbs loaded`);
+    }).catch(err => {
+      console.error('❌ Initial sync failed:', err.message);
+    });
+  } else {
+    console.log(`📍 Suburbs store ready: ${suburbStats.total} suburbs loaded`);
+  }
 });
 
 module.exports = app;
