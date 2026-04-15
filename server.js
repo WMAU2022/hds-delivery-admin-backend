@@ -24,19 +24,12 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 
-// Capture raw body for webhook signature verification (before bodyParser)
-app.use((req, res, next) => {
-  let rawBody = '';
-  req.on('data', chunk => {
-    rawBody += chunk.toString('utf8');
-  });
-  req.on('end', () => {
-    req.rawBody = rawBody;
-    next();
-  });
-});
-
-app.use(bodyParser.json());
+// Parse JSON with raw body capture for webhook signature verification
+app.use(bodyParser.json({
+  verify: (req, res, buf, encoding) => {
+    req.rawBody = buf.toString(encoding || 'utf8');
+  }
+}));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Health check
