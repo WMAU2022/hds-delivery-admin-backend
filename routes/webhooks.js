@@ -155,4 +155,76 @@ router.post('/shopify/orders/create', async (req, res) => {
   }
 });
 
+/**
+ * POST /webhooks/loop/order-created
+ * Webhook from Loop when a subscription auto-charge creates an order
+ * Handles offset calculation and HDS delivery data attachment
+ */
+router.post('/loop/order-created', async (req, res) => {
+  const pool = require('../lib/db');
+  const { calculateNextDeliveryDate } = require('../lib/offset-calculator');
+
+  // Acknowledge immediately (Loop expects 200 quickly)
+  res.status(200).json({ processed: true });
+
+  try {
+    const { data } = req.body;
+    if (!data || !data.order) return;
+
+    const order = data.order;
+    const loopSubscriptionId = order.subscription_id;
+
+    // Skip if not from subscription
+    if (!loopSubscriptionId) return;
+
+    // Check idempotency
+    const existing = await pool.query(
+      'SELECT id FROM subscription_auto_charges WHERE loop_order_id = $1',
+      [order.id]
+    );
+    if (existing.rows.length > 0) return;
+
+    // Get subscription mapping
+    const mappingResult = await pool.query(
+      `SELECT m.*, d.delivery_day FROM subscription_hds_mapping m
+       LEFT JOIN delivery_schedules d ON m.hds_schedule_id = d.id
+       WHERE m.loop_subscription_id = $1 AND m.active = true`,
+      [loopSubscriptionId]
+    );
+
+    if (!mappingResult.rows.length) {
+      await pool.query(
+        `INSERT INTO subscription_auto_charges (loop_subscription_id, loop_order_id, status, error_message, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [loopSubscriptionId, order.id, 'failed', 'No HDS mapping found']
+      );
+      return;
+    }
+
+    const mapping = mappingResult.rows[0];
+    const deliveryDates = calculateNextDeliveryDate(mapping.delivery_day, mapping.offset_days);
+
+    // Log the charge
+    await pool.query(
+      `INSERT INTO subscription_auto_charges (loop_subscription_id, loop_order_id, shopify_order_id, 
+       next_delivery_date, charge_date, offset_days, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [
+        loopSubscriptionId,
+        order.id,
+        order.shopify_order_id,
+        deliveryDates.next_delivery_date,
+        deliveryDates.charge_date,
+        mapping.offset_days,
+        'processed'
+      ]
+    );
+
+    console.log(`✅ Loop order ${order.id} processed: delivery ${deliveryDates.next_delivery_date}`);
+
+  } catch (error) {
+    console.error('❌ Loop webhook error:', error.message);
+  }
+});
+
 module.exports = router;

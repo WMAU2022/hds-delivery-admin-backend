@@ -13,6 +13,7 @@ const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
 const schedulesCrudRouter = require('./routes/schedules-crud');
+const subscriptionsRouter = require('./routes/subscriptions');
 const syncRouter = require('./routes/sync');
 const blackoutRouter = require('./routes/blackout');
 const publicRouter = require('./routes/public');
@@ -162,12 +163,13 @@ function formatDeliveryDate(dateStr) {
 // Use real CRUD routes for schedules (in-memory store only)
 app.use('/api/schedules', schedulesCrudRouter);
 
-// Webhooks (Shopify integration - no auth required, signature verified)
+// Webhooks (Shopify + Loop integration - no auth required, signature verified)
 app.use('/webhooks', webhooksRouter);
 
 // API Routes
 app.use('/api/regions', regionsRouter);
 app.use('/api/suburbs', suburbsRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
 // NOTE: schedulesRouter removed - it requires PostgreSQL which is not available
 // All schedule operations use in-memory store via schedulesCrudRouter above
 app.use('/api/sync', syncRouter);
@@ -258,6 +260,62 @@ async function runMigrations() {
       )
     `);
     console.log('    ✅ blackout_dates table ready');
+    
+    // Create subscription_hds_mapping table
+    console.log('  Creating subscription_hds_mapping table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscription_hds_mapping (
+        id SERIAL PRIMARY KEY,
+        loop_subscription_id VARCHAR NOT NULL UNIQUE,
+        hds_schedule_id INTEGER NOT NULL REFERENCES delivery_schedules(id),
+        hds_region_id INTEGER NOT NULL,
+        offset_days INTEGER NOT NULL,
+        delivery_day VARCHAR NOT NULL,
+        pack_day VARCHAR,
+        cutoff_day VARCHAR,
+        customer_id VARCHAR,
+        customer_email VARCHAR,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('    ✅ subscription_hds_mapping table ready');
+    
+    // Create subscription_changes_log table
+    console.log('  Creating subscription_changes_log table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscription_changes_log (
+        id SERIAL PRIMARY KEY,
+        loop_subscription_id VARCHAR NOT NULL,
+        change_type VARCHAR NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        reason VARCHAR,
+        triggered_by VARCHAR,
+        changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('    ✅ subscription_changes_log table ready');
+    
+    // Create subscription_auto_charges table
+    console.log('  Creating subscription_auto_charges table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscription_auto_charges (
+        id SERIAL PRIMARY KEY,
+        loop_subscription_id VARCHAR NOT NULL,
+        loop_order_id VARCHAR,
+        shopify_order_id VARCHAR,
+        next_delivery_date DATE,
+        charge_date DATE,
+        offset_days INTEGER,
+        status VARCHAR DEFAULT 'pending',
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processed_at TIMESTAMP
+      )
+    `);
+    console.log('    ✅ subscription_auto_charges table ready');
     
     console.log('✅ All migrations completed successfully');
     client.release();
