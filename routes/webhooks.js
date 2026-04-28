@@ -3,6 +3,16 @@ const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
 
+// Format delivery time slot with hours
+function formatDeliveryTime(deliveryTime) {
+  if (deliveryTime === 'AM' || deliveryTime === 'am') {
+    return '12:00 AM - 7:00 AM';
+  } else if (deliveryTime === 'Business Hours' || deliveryTime === 'business hours') {
+    return '8:00 AM - 6:00 PM';
+  }
+  return deliveryTime; // Fallback to original if not recognized
+}
+
 // Shopify webhook signature verification
 function verifyShopifyWebhook(req, secret) {
   const hmac = req.get('X-Shopify-Hmac-SHA256');
@@ -46,9 +56,15 @@ function extractHDSData(order) {
 // Update line items with delivery properties via Shopify API
 async function updateLineItemsWithDeliveryData(orderId, hdsData) {
   try {
-    if (!hdsData || !hdsData.delivery_date || !hdsData.delivery_time) {
-      console.log('⚠️ Incomplete HDS data, skipping line item update');
+    if (!hdsData || !hdsData.delivery_date) {
+      console.log('⚠️ Incomplete HDS data (missing delivery_date), skipping line item update');
       return false;
+    }
+
+    // Ensure delivery_time is formatted
+    if (hdsData.delivery_time && !hdsData.delivery_time.includes(':')) {
+      // If not yet formatted, format it now
+      hdsData.delivery_time = formatDeliveryTime(hdsData.delivery_time);
     }
 
     const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
@@ -77,12 +93,13 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
     }
 
     // Update each line item with delivery properties
+    // hdsData.delivery_time is already formatted (e.g., "8:00 AM - 6:00 PM" or "12:00 AM - 7:00 AM")
     const updatedLineItems = order.line_items.map(item => ({
       id: item.id,
       properties: {
         'Delivery Date': hdsData.delivery_date,
-        'Delivery Time Window': hdsData.delivery_time,
-        'Pick-Pack Date': hdsData.pick_pack_date || hdsData.delivery_date,
+        'Pack Date': hdsData.pack_date || hdsData.delivery_date,
+        'Delivery Time': hdsData.delivery_time,
       },
     }));
 
@@ -108,7 +125,10 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
     console.log('✅ Line items updated with delivery data:', {
       orderId,
       lineItemCount: updatedLineItems.length,
-      deliveryData: hdsData,
+      deliveryDate: hdsData.delivery_date,
+      packDate: hdsData.pack_date,
+      deliveryTime: hdsData.delivery_time,
+      note: 'Times formatted as "8:00 AM - 6:00 PM" or "12:00 AM - 7:00 AM"',
     });
 
     return true;
