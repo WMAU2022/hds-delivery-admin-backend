@@ -312,9 +312,19 @@ router.get('/delivery-options', async (req, res) => {
       });
     }
 
-    // 4. Calculate available delivery dates
+    // 4. Calculate available delivery dates + pack dates
     const today = new Date();
     const options = [];
+    const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const reverseDayMap = {
+      'Sunday': 0,
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6,
+    };
 
     for (const schedule of schedules) {
       try {
@@ -330,16 +340,32 @@ router.get('/delivery-options', async (req, res) => {
         const isBlackout = await checkBlackoutDate(suburb.region_id, nextDeliveryDate);
         if (isBlackout) continue;
 
+        // Calculate pack date from delivery date and pack day
+        const deliveryDayNum = nextDeliveryDate.getDay();
+        const packDayNum = reverseDayMap[schedule.pack_day];
+        const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
+        const packDateObj = new Date(nextDeliveryDate);
+        packDateObj.setDate(packDateObj.getDate() - dayDifference);
+        const packDateStr = packDateObj.toISOString().split('T')[0];
+
         options.push({
           schedule_id: schedule.id,
           delivery_day: schedule.delivery_day,
           delivery_window: schedule.hours || 'Standard Hours',
           cutoff_info: `${getDayName(schedule.cutoff_day)} 2 PM`,
           delivery_date: nextDeliveryDate.toISOString().split('T')[0],
+          pack_date: packDateStr,
+          pack_day: schedule.pack_day,
           formatted_date: nextDeliveryDate.toLocaleDateString('en-AU', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
+            day: 'numeric',
+          }),
+          formatted_pack_date: packDateObj.toLocaleDateString('en-AU', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
             day: 'numeric',
           }),
         });
