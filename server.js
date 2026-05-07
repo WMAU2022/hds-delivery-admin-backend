@@ -64,6 +64,9 @@ app.get('/api/public/delivery-options', (req, res) => {
   const sydneyNextDeliveryDate = getNextDeliveryDate('Thursday', 'Sunday');
   const melbourneNextDeliveryDate = getNextDeliveryDate('Thursday', 'Friday');
   
+  const sydneyPackDate = getPackDate(sydneyNextDeliveryDate);
+  const melbournePackDate = getPackDate(melbourneNextDeliveryDate);
+
   const schedulesByRegion = {
     1: [ // Sydney Metro - Thursday cutoff → Saturday pack → Sunday delivery
       {
@@ -73,6 +76,9 @@ app.get('/api/public/delivery-options', (req, res) => {
         cutoff_info: 'Thursday 2:00 PM',
         delivery_date: sydneyNextDeliveryDate,
         formatted_date: formatDeliveryDate(sydneyNextDeliveryDate),
+        pack_date: sydneyPackDate,
+        pack_day: getPackDay(sydneyNextDeliveryDate),
+        formatted_pack_date: formatPackDate(sydneyPackDate),
       },
       {
         schedule_id: 2,
@@ -81,6 +87,9 @@ app.get('/api/public/delivery-options', (req, res) => {
         cutoff_info: 'Thursday 2:00 PM',
         delivery_date: sydneyNextDeliveryDate,
         formatted_date: formatDeliveryDate(sydneyNextDeliveryDate),
+        pack_date: sydneyPackDate,
+        pack_day: getPackDay(sydneyNextDeliveryDate),
+        formatted_pack_date: formatPackDate(sydneyPackDate),
       },
     ],
     2: [ // Melbourne Metro - Thursday cutoff → Friday pack → Friday delivery
@@ -91,6 +100,9 @@ app.get('/api/public/delivery-options', (req, res) => {
         cutoff_info: 'Thursday 2:00 PM',
         delivery_date: melbourneNextDeliveryDate,
         formatted_date: formatDeliveryDate(melbourneNextDeliveryDate),
+        pack_date: melbournePackDate,
+        pack_day: getPackDay(melbourneNextDeliveryDate),
+        formatted_pack_date: formatPackDate(melbournePackDate),
       },
       {
         schedule_id: 4,
@@ -99,6 +111,9 @@ app.get('/api/public/delivery-options', (req, res) => {
         cutoff_info: 'Thursday 2:00 PM',
         delivery_date: melbourneNextDeliveryDate,
         formatted_date: formatDeliveryDate(melbourneNextDeliveryDate),
+        pack_date: melbournePackDate,
+        pack_day: getPackDay(melbourneNextDeliveryDate),
+        formatted_pack_date: formatPackDate(melbournePackDate),
       },
     ],
   };
@@ -147,6 +162,29 @@ function getNextDeliveryDate(cutoffDayStr, deliveryDayStr) {
 
 function formatDeliveryDate(dateStr) {
   const date = new Date(dateStr + 'T00:00:00Z');
+  return date.toLocaleDateString('en-AU', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function getPackDate(deliveryDateStr) {
+  const date = new Date(deliveryDateStr + 'T00:00:00Z');
+  date.setDate(date.getDate() - 1); // Pack day is 1 day before delivery
+  return date.toISOString().split('T')[0];
+}
+
+function getPackDay(deliveryDateStr) {
+  const date = new Date(deliveryDateStr + 'T00:00:00Z');
+  date.setDate(date.getDate() - 1);
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return dayNames[date.getDay()];
+}
+
+function formatPackDate(packDateStr) {
+  const date = new Date(packDateStr + 'T00:00:00Z');
   return date.toLocaleDateString('en-AU', {
     weekday: 'long',
     year: 'numeric',

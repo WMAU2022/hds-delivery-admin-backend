@@ -29,3 +29,224 @@
 ⏰ HDS suburbs sync scheduled: Daily at 3:00 AM AEST
 ⏰ HDS suburbs sync scheduled (daily at 3 AM)
 📍 Suburbs store ready: 6942 suburbs
+
+📅 Scheduled HDS sync triggered (2 AM daily)
+🔄 Starting HDS regions sync...
+🔄 Refreshing HDS token...
+✅ HDS Authentication successful
+⏰ Sample suburb check (Canberra 2600):
+✅ Suburb serviceable response: {
+  "id": 3,
+  "is_serviceable": true,
+  "zone": "ACT Canberra Metro",
+  "zoneCode": "ACMET",
+  "depot": "Canberra",
+  "depotState": "Australian Capital Territory",
+  "sortCode": "A1"
+}
+✅ HDS regions sync completed
+🔄 Starting HDS suburbs sync...
+✅ HDS suburbs sync completed
+
+📅 [CRON] Scheduled HDS suburbs sync triggered (3 AM daily)
+
+🔄 Starting HDS suburbs sync...
+📍 Checking 73 suburbs for serviceability...
+✨ NEW: Sydney (2000) - Zone: NSW Sydney Metro
+✨ NEW: Parramatta (2150) - Zone: NSW Sydney Metro
+✨ NEW: Manly (2095) - Zone: NSW Sydney Metro
+✨ NEW: Bondi (2026) - Zone: NSW Sydney Metro
+✨ NEW: Coogee (2034) - Zone: NSW Sydney Metro
+✨ NEW: Randwick (2031) - Zone: NSW Sydney Metro
+✨ NEW: Paddington (2021) - Zone: NSW Sydney Metro
+✨ NEW: Surry Hills (2010) - Zone: NSW Sydney Metro
+✨ NEW: Newtown (2042) - Zone: NSW Sydney Metro
+✨ NEW: Chatswood (2067) - Zone: NSW Sydney Metro
+✨ NEW: Epping (2121) - Zone: NSW Sydney Metro
+✨ NEW: Pennant Hills (2120) - Zone: NSW Sydney Metro
+✨ NEW: Hornsby (2077) - Zone: NSW Sydney Metro
+✨ NEW: North Sydney (2060) - Zone: NSW Sydney Metro
+✨ NEW: Mosman (2088) - Zone: NSW Sydney Metro
+✨ NEW: Marrickville (2204) - Zone: NSW Sydney Metro
+✨ NEW: Leichhardt (2040) - Zone: NSW Sydney Metro
+✨ NEW: Balmain (2041) - Zone: NSW Sydney Metro
+✨ NEW: Glebe (2037) - Zone: NSW Sydney Metro
+✨ NEW: Ultimo (2007) - Zone: NSW Sydney Metro
+✨ NEW: Penrith (2750) - Zone: NSW Sydney Metro
+✨ NEW: Campbelltown (2560) - Zone: NSW Sydney Metro
+✨ NEW: Newcastle (2300) - Zone: NSW Newcastle
+✨ NEW: Central Coast (2250) - Zone: 
+✨ NEW: Melbourne (3000) - Zone: VIC Melbourne Metro
+✨ NEW: Fitzroy (3065) - Zone: VIC Melbourne Metro
+✨ NEW: Carlton (3053) - Zone: VIC Melbourne Metro
+✨ NEW: North Melbourne (3051) - Zone: VIC Melbourne Metro
+✨ NEW: Southbank (3006) - Zone: VIC Melbourne Metro Inner
+✨ NEW: St Kilda (3182) - Zone: VIC Melbourne Metro Inner
+✨ NEW: Collingwood (3066) - Zone: VIC Melbourne Metro
+✨ NEW: Footscray (3011) - Zone: VIC Melbourne Metro
+✨ NEW: Williamstown (3016) - Zone: VIC Melbourne Metro
+✨ NEW: Essendon (3040) - Zone: VIC Melbourne Metro
+✨ NEW: Moonee Ponds (3039) - Zone: VIC Melbourne Metro
+✨ NEW: Brunswick (3056) - Zone: VIC Melbourne Metro
+✨ NEW: Coburg (3058) - Zone: VIC Melbourne Metro
+✨ NEW: Thornbury (3071) - Zone: VIC Melbourne Metro
+✨ NEW: Preston (3072) - Zone: VIC Melbourne Metro
+✨ NEW: Epping (3076) - Zone: VIC Outer Melbourne West
+✨ NEW: Camberwell (3124) - Zone: VIC Melbourne Metro
+✨ NEW: Malvern (3144) - Zone: VIC Melbourne Metro
+✨ NEW: South Yarra (3141) - Zone: VIC Melbourne Metro Inner
+✨ NEW: Toorak (3142) - Zone: VIC Melbourne Metro
+✨ NEW: Caulfield (3161) - Zone: 
+✨ NEW: Bentleigh (3204) - Zone: VIC Melbourne Metro
+✨ NEW: Glen Waverley (3150) - Zone: VIC Melbourne Metro
+✨ NEW: Geelong (3220) - Zone: VIC Geelong
+✨ NEW: Brisbane (4000) - Zone: QLD Brisbane Metro
+✨ NEW: South Brisbane (4101) - Zone: QLD Brisbane Metro
+✨ NEW: Fortitude Valley (4006) - Zone: QLD Brisbane Metro
+✨ NEW: Woolloongabba (4102) - Zone: QLD Brisbane Metro
+✨ NEW: Paddington (4064) - Zone: QLD Brisbane Metro
+✨ NEW: West End (4101) - Zone: QLD Brisbane Metro
+✨ NEW: Teneriffe (4005) - Zone: QLD Brisbane Metro
+✨ NEW: Ascot (4007) - Zone: QLD Brisbane Metro
+✨ NEW: Indooroopilly (4068) - Zone: QLD Brisbane Metro
+✨ NEW: Toowong (4066) - Zone: QLD Brisbane Metro
+✨ NEW: Milton (4064) - Zone: QLD Brisbane Metro
+✨ NEW: New Farm (4005) - Zone: QLD Brisbane Metro
+✨ NEW: Surfers Paradise (4217) - Zone: QLD Gold Coast
+✨ NEW: Broadbeach (4218) - Zone: QLD Gold Coast
+✨ NEW: Southport (4215) - Zone: QLD Gold Coast
+✨ NEW: Gold Coast (4217) - Zone: 
+✨ NEW: Coolangatta (4225) - Zone: QLD Gold Coast
+✨ NEW: Sunshine Coast (4551) - Zone: 
+✨ NEW: Noosa (4567) - Zone: 
+✨ NEW: Mooloolaba (4557) - Zone: QLD Sunshine Coast
+✨ NEW: Canberra (2600) - Zone: ACT Canberra Metro
+✨ NEW: Civic (2601) - Zone: 
+✨ NEW: Belconnen (2617) - Zone: ACT Canberra Metro
+✨ NEW: Woden (2606) - Zone: 
+✨ NEW: Gungahlin (2912) - Zone: ACT Canberra Metro
+
+✅ HDS suburbs sync completed
+
+📊 Sync Summary:
+  Total checked: 73
+  Serviceable: 66
+  Not serviceable: 7
+  New suburbs found: 73
+  Updated suburbs: 0
+  Zone changes: 0
+  Failed checks: 0
+  Duration: 9.44s
+
+📈 Current Store Stats:
+  Total suburbs: 7015
+  Serviceable: 7008
+  Not serviceable: 7
+  NSW Sydney Metro: 3661/3664 serviceable
+  NSW Newcastle: 148/148 serviceable
+  NSW Wollongong Coast: 129/129 serviceable
+  NSW Coffs Harbour: 34/34 serviceable
+  NSW Armidale: 10/10 serviceable
+  NSW Tamworth: 26/26 serviceable
+  VIC Melbourne Metro: 493/494 serviceable
+  VIC Geelong: 81/81 serviceable
+  VIC Ballarat: 76/76 serviceable
+  VIC Bendigo: 119/119 serviceable
+  VIC Shepparton: 62/62 serviceable
+  VIC Regional West - Warrnambool: 12/12 serviceable
+  VIC Albury Wodonga: 44/44 serviceable
+  QLD Brisbane Metro: 449/452 serviceable
+  QLD Toowoomba: 74/74 serviceable
+  QLD Lismore: 21/21 serviceable
+  QLD-FNQ Cairns: 41/41 serviceable
+  QLD-FNQ Townsville: 42/42 serviceable
+  QLD-FNQ Rockhampton: 32/32 serviceable
+  QLD-FNQ Mackay: 39/39 serviceable
+  WA Perth Metro: 483/483 serviceable
+  WA South Coast - Bunbury 2 - Busselton: 45/45 serviceable
+  SA Adelaide Metro: 430/430 serviceable
+  ACT Canberra Metro: 294/294 serviceable
+  TAS Hobart Metro: 69/69 serviceable
+  TAS Launceston Metro: 29/29 serviceable
+  NT Darwin Metro: 65/65 serviceable
+
+✨ New Suburbs (73):
+  - Sydney (2000) [NSW Sydney Metro]
+  - Parramatta (2150) [NSW Sydney Metro]
+  - Manly (2095) [NSW Sydney Metro]
+  - Bondi (2026) [NSW Sydney Metro]
+  - Coogee (2034) [NSW Sydney Metro]
+  ... and 68 more
+
+📅 Scheduled HDS sync triggered (2 AM daily)
+🔄 Starting HDS regions sync...
+⏰ Sample suburb check (Canberra 2600):
+✅ Suburb serviceable response: {
+  "id": 3,
+  "is_serviceable": true,
+  "zone": "ACT Canberra Metro",
+  "zoneCode": "ACMET",
+  "depot": "Canberra",
+  "depotState": "Australian Capital Territory",
+  "sortCode": "A1"
+}
+✅ HDS regions sync completed
+🔄 Starting HDS suburbs sync...
+✅ HDS suburbs sync completed
+
+📅 [CRON] Scheduled HDS suburbs sync triggered (3 AM daily)
+
+🔄 Starting HDS suburbs sync...
+📍 Checking 73 suburbs for serviceability...
+
+✅ HDS suburbs sync completed
+
+📊 Sync Summary:
+  Total checked: 73
+  Serviceable: 66
+  Not serviceable: 7
+  New suburbs found: 0
+  Updated suburbs: 0
+  Zone changes: 0
+  Failed checks: 0
+  Duration: 9.03s
+
+📈 Current Store Stats:
+  Total suburbs: 7015
+  Serviceable: 7008
+  Not serviceable: 7
+  NSW Sydney Metro: 3661/3664 serviceable
+  NSW Newcastle: 148/148 serviceable
+  NSW Wollongong Coast: 129/129 serviceable
+  NSW Coffs Harbour: 34/34 serviceable
+  NSW Armidale: 10/10 serviceable
+  NSW Tamworth: 26/26 serviceable
+  VIC Melbourne Metro: 493/494 serviceable
+  VIC Geelong: 81/81 serviceable
+  VIC Ballarat: 76/76 serviceable
+  VIC Bendigo: 119/119 serviceable
+  VIC Shepparton: 62/62 serviceable
+  VIC Regional West - Warrnambool: 12/12 serviceable
+  VIC Albury Wodonga: 44/44 serviceable
+  QLD Brisbane Metro: 449/452 serviceable
+  QLD Toowoomba: 74/74 serviceable
+  QLD Lismore: 21/21 serviceable
+  QLD-FNQ Cairns: 41/41 serviceable
+  QLD-FNQ Townsville: 42/42 serviceable
+  QLD-FNQ Rockhampton: 32/32 serviceable
+  QLD-FNQ Mackay: 39/39 serviceable
+  WA Perth Metro: 483/483 serviceable
+  WA South Coast - Bunbury 2 - Busselton: 45/45 serviceable
+  SA Adelaide Metro: 430/430 serviceable
+  ACT Canberra Metro: 294/294 serviceable
+  TAS Hobart Metro: 69/69 serviceable
+  TAS Launceston Metro: 29/29 serviceable
+  NT Darwin Metro: 65/65 serviceable
+
+📅 Scheduled HDS sync triggered (2 AM daily)
+🔄 Starting HDS regions sync...
+⏰ Sample suburb check (Canberra 2600):
+❌ Serviceability check failed for Canberra 2600: Request failed with status code 401
+❌ HDS sync error: Request failed with status code 401
+🔄 Starting HDS suburbs sync...
+✅ HDS suburbs sync completed
