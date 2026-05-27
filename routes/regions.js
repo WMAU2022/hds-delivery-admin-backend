@@ -209,4 +209,43 @@ router.put('/:id/disable', async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/regions/:id/cutoff-time
+ * Update cutoff time for a region (business rule - when orders stop)
+ */
+router.put('/:id/cutoff-time', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cutoffTime } = req.body;
+
+    if (!cutoffTime) {
+      return res.status(400).json({ error: 'cutoffTime is required' });
+    }
+
+    // Validate time format (HH:MM)
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM|am|pm)?$/;
+    if (!timeRegex.test(cutoffTime)) {
+      return res.status(400).json({ error: 'Invalid time format. Use HH:MM or HH:MM AM/PM' });
+    }
+
+    const region = regionsStore.getById(id);
+    if (!region) {
+      return res.status(404).json({ error: 'Region not found' });
+    }
+
+    // Update the region with the new cutoff time
+    const updated = regionsStore.update(id, { cutoff_time: cutoffTime });
+
+    console.log(`✅ Cutoff time for region ${id} updated to ${cutoffTime}`);
+    res.json({
+      success: true,
+      data: updated,
+      message: `Cutoff time updated to ${cutoffTime}`,
+    });
+  } catch (error) {
+    console.error('PUT /regions/:id/cutoff-time error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
