@@ -174,10 +174,15 @@ router.get('/pick-pack-date', async (req, res) => {
       return `${year}/${month}/${day}`;
     };
 
+    // Calculate production date (1 day before pack date)
+    const productionDateObj = new Date(packDateObj);
+    productionDateObj.setDate(productionDateObj.getDate() - 1);
+
     res.json({
       success: true,
       deliveryDate: formatDate(deliveryDateObj),
       packDate: formatDate(packDateObj),
+      productionDate: formatDate(productionDateObj),
       scheduleInfo: {
         region: region.name,
         deliveryDay: deliveryDayName,
@@ -348,6 +353,11 @@ router.get('/delivery-options', async (req, res) => {
         packDateObj.setDate(packDateObj.getDate() - dayDifference);
         const packDateStr = packDateObj.toISOString().split('T')[0];
 
+        // Calculate production date (1 day before pack date)
+        const productionDateObj = new Date(packDateObj);
+        productionDateObj.setDate(productionDateObj.getDate() - 1);
+        const productionDateStr = productionDateObj.toISOString().split('T')[0];
+
         options.push({
           schedule_id: schedule.id,
           delivery_day: schedule.delivery_day,
@@ -356,6 +366,7 @@ router.get('/delivery-options', async (req, res) => {
           delivery_date: nextDeliveryDate.toISOString().split('T')[0],
           pack_date: packDateStr,
           pack_day: schedule.pack_day,
+          production_date: productionDateStr,
           formatted_date: nextDeliveryDate.toLocaleDateString('en-AU', {
             weekday: 'long',
             year: 'numeric',
@@ -363,6 +374,12 @@ router.get('/delivery-options', async (req, res) => {
             day: 'numeric',
           }),
           formatted_pack_date: packDateObj.toLocaleDateString('en-AU', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          }),
+          formatted_production_date: productionDateObj.toLocaleDateString('en-AU', {
             weekday: 'short',
             year: 'numeric',
             month: 'short',
