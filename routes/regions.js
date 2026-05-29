@@ -213,6 +213,39 @@ router.put('/:id/disable', async (req, res) => {
  * PUT /api/regions/:id/cutoff-time
  * Update cutoff time for a region (business rule - when orders stop)
  */
+/**
+ * PUT /api/regions/:id
+ * Generic update route for region fields (cutoff_time, location, etc.)
+ */
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'At least one field to update is required' });
+    }
+
+    const region = regionsStore.getById(id);
+    if (!region) {
+      return res.status(404).json({ error: 'Region not found' });
+    }
+
+    // Update the region with provided fields
+    const updated = regionsStore.update(id, updates);
+
+    console.log(`✅ Region ${id} updated:`, updates);
+    res.json({
+      success: true,
+      data: updated,
+      message: 'Region updated successfully',
+    });
+  } catch (error) {
+    console.error('PUT /regions/:id error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.put('/:id/cutoff-time', async (req, res) => {
   try {
     const { id } = req.params;
