@@ -119,7 +119,30 @@ app.get('/api/public/delivery-options', (req, res) => {
   };
 
   const region_names = { 1: 'Sydney Metro', 2: 'Melbourne Metro' };
-  const options = schedulesByRegion[location.region_id] || [];
+  const rawOptions = schedulesByRegion[location.region_id] || [];
+
+  // Group by delivery_day to avoid duplicates
+  const groupedByDay = {};
+  rawOptions.forEach(opt => {
+    if (!groupedByDay[opt.delivery_day]) {
+      groupedByDay[opt.delivery_day] = {
+        delivery_day: opt.delivery_day,
+        delivery_date: opt.delivery_date,
+        formatted_date: opt.formatted_date,
+        pack_date: opt.pack_date,
+        pack_day: opt.pack_day,
+        formatted_pack_date: opt.formatted_pack_date,
+        cutoff_info: opt.cutoff_info,
+        time_windows: []
+      };
+    }
+    groupedByDay[opt.delivery_day].time_windows.push({
+      schedule_id: opt.schedule_id,
+      delivery_window: opt.delivery_window,
+    });
+  });
+
+  const options = Object.values(groupedByDay);
 
   res.json({
     success: true,
@@ -131,7 +154,7 @@ app.get('/api/public/delivery-options', (req, res) => {
       name: region_names[location.region_id] || 'Unknown Region',
     },
     delivery_options: options,
-    message: `${options.length} delivery option${options.length === 1 ? '' : 's'} available for ${location.suburb}`,
+    message: `${options.length} delivery day${options.length === 1 ? '' : 's'} available for ${location.suburb}`,
   });
 });
 
