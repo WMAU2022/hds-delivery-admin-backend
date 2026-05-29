@@ -94,12 +94,16 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
 
     // Update each line item with delivery properties
     // hdsData.delivery_time is already formatted (e.g., "8:00 AM - 6:00 PM" or "12:00 AM - 7:00 AM")
+    // hdsData.production_date is pack_date - 1 day (calculated on backend)
+    // hdsData.location is the region/delivery area
     const updatedLineItems = order.line_items.map(item => ({
       id: item.id,
       properties: {
         'Delivery Date': hdsData.delivery_date,
         'Pack Date': hdsData.pack_date || hdsData.delivery_date,
+        'Production Date': hdsData.production_date,
         'Delivery Time': hdsData.delivery_time,
+        'Location': hdsData.location,
       },
     }));
 
@@ -127,7 +131,9 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
       lineItemCount: updatedLineItems.length,
       deliveryDate: hdsData.delivery_date,
       packDate: hdsData.pack_date,
+      productionDate: hdsData.production_date,
       deliveryTime: hdsData.delivery_time,
+      location: hdsData.location,
       note: 'Times formatted as "8:00 AM - 6:00 PM" or "12:00 AM - 7:00 AM"',
     });
 
