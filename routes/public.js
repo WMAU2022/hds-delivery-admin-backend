@@ -333,59 +333,61 @@ router.get('/delivery-options', async (req, res) => {
 
     for (const schedule of schedules) {
       try {
-        // Calculate next delivery date based on schedule
-        const nextDeliveryDate = calculateNextDeliveryDate(
-          today,
-          schedule.cutoff_day,
-          schedule.pack_day,
-          schedule.delivery_day
-        );
+        // Generate 6 upcoming delivery dates for this schedule
+        for (let i = 0; i < 6; i++) {
+          const deliveryDate = calculateNextDeliveryDate(
+            new Date(today.getTime() + (i * 7 * 24 * 60 * 60 * 1000)), // Add i weeks
+            schedule.cutoff_day,
+            schedule.pack_day,
+            schedule.delivery_day
+          );
 
-        // Skip if date is blackout (check blackout_dates table if needed)
-        const isBlackout = await checkBlackoutDate(suburb.region_id, nextDeliveryDate);
-        if (isBlackout) continue;
+          // Skip if date is blackout
+          const isBlackout = await checkBlackoutDate(suburb.region_id, deliveryDate);
+          if (isBlackout) continue;
 
-        // Calculate pack date from delivery date and pack day
-        const deliveryDayNum = nextDeliveryDate.getDay();
-        const packDayNum = reverseDayMap[schedule.pack_day];
-        const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
-        const packDateObj = new Date(nextDeliveryDate);
-        packDateObj.setDate(packDateObj.getDate() - dayDifference);
-        const packDateStr = packDateObj.toISOString().split('T')[0];
+          // Calculate pack date from delivery date and pack day
+          const deliveryDayNum = deliveryDate.getDay();
+          const packDayNum = reverseDayMap[schedule.pack_day];
+          const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
+          const packDateObj = new Date(deliveryDate);
+          packDateObj.setDate(packDateObj.getDate() - dayDifference);
+          const packDateStr = packDateObj.toISOString().split('T')[0];
 
-        // Calculate production date (1 day before pack date)
-        const productionDateObj = new Date(packDateObj);
-        productionDateObj.setDate(productionDateObj.getDate() - 1);
-        const productionDateStr = productionDateObj.toISOString().split('T')[0];
+          // Calculate production date (1 day before pack date)
+          const productionDateObj = new Date(packDateObj);
+          productionDateObj.setDate(productionDateObj.getDate() - 1);
+          const productionDateStr = productionDateObj.toISOString().split('T')[0];
 
-        options.push({
-          schedule_id: schedule.id,
-          delivery_day: schedule.delivery_day,
-          delivery_window: schedule.hours || 'Standard Hours',
-          cutoff_info: `${getDayName(schedule.cutoff_day)} 2 PM`,
-          delivery_date: nextDeliveryDate.toISOString().split('T')[0],
-          pack_date: packDateStr,
-          pack_day: schedule.pack_day,
-          production_date: productionDateStr,
-          formatted_date: nextDeliveryDate.toLocaleDateString('en-AU', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          }),
-          formatted_pack_date: packDateObj.toLocaleDateString('en-AU', {
-            weekday: 'short',
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          }),
-          formatted_production_date: productionDateObj.toLocaleDateString('en-AU', {
-            weekday: 'short',
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          }),
-        });
+          options.push({
+            schedule_id: schedule.id,
+            delivery_day: schedule.delivery_day,
+            delivery_window: schedule.hours || 'Standard Hours',
+            cutoff_info: `${getDayName(schedule.cutoff_day)} 2 PM`,
+            delivery_date: deliveryDate.toISOString().split('T')[0],
+            pack_date: packDateStr,
+            pack_day: schedule.pack_day,
+            production_date: productionDateStr,
+            formatted_date: deliveryDate.toLocaleDateString('en-AU', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+            formatted_pack_date: packDateObj.toLocaleDateString('en-AU', {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            }),
+            formatted_production_date: productionDateObj.toLocaleDateString('en-AU', {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            }),
+          });
+        }
       } catch (scheduleError) {
         console.error(`Error processing schedule ${schedule.id}:`, scheduleError);
       }
