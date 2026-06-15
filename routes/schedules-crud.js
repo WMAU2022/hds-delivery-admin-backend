@@ -73,12 +73,21 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // Convert day names to numbers
+    const cutoff_day_num = convertDayToNumber(cutoff_day);
+    const pack_day_num = convertDayToNumber(pack_day);
+    const delivery_day_num = convertDayToNumber(delivery_day);
+
+    if (cutoff_day_num === null || pack_day_num === null || delivery_day_num === null) {
+      return res.status(400).json({ error: 'Invalid day name(s). Use Sunday-Saturday or 0-6' });
+    }
+
     // Insert into PostgreSQL
     const dbResult = await pool.query(
       `INSERT INTO delivery_schedules (region_id, cutoff_day, pack_day, delivery_day, hours, enabled, is_default, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
        RETURNING *`,
-      [region_id, cutoff_day, pack_day, delivery_day, hours || 'AM', enabled !== false, is_default === true]
+      [region_id, cutoff_day_num, pack_day_num, delivery_day_num, hours || 'AM', enabled !== false, is_default === true]
     );
 
     const schedule = dbResult.rows[0];
@@ -117,15 +126,15 @@ router.put('/:id', async (req, res) => {
 
     if (cutoff_day !== undefined) {
       updates.push(`cutoff_day = $${paramCount++}`);
-      values.push(cutoff_day);
+      values.push(convertDayToNumber(cutoff_day));
     }
     if (pack_day !== undefined) {
       updates.push(`pack_day = $${paramCount++}`);
-      values.push(pack_day);
+      values.push(convertDayToNumber(pack_day));
     }
     if (delivery_day !== undefined) {
       updates.push(`delivery_day = $${paramCount++}`);
-      values.push(delivery_day);
+      values.push(convertDayToNumber(delivery_day));
     }
     if (hours !== undefined) {
       updates.push(`hours = $${paramCount++}`);
