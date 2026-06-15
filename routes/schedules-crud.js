@@ -50,8 +50,8 @@ router.get('/', async (req, res) => {
     });
     res.json({ data });
   } catch (error) {
-    console.error('Error fetching schedules:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error fetching schedules:', error.message, error.stack);
+    res.status(500).json({ error: error.message || 'Internal server error', details: error.toString() });
   }
 });
 
@@ -76,8 +76,8 @@ router.get('/:id', async (req, res) => {
       delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
     });
   } catch (error) {
-    console.error('Error fetching schedule:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error fetching schedule:', error.message, error.stack);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
@@ -137,7 +137,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ success: true, data: responseData });
   } catch (error) {
-    console.error('Error creating schedule:', error);
+    console.error('❌ Error creating schedule:', error.message, error.stack);
     res.status(500).json({ error: error.message || 'Unknown error' });
   }
 });
@@ -224,7 +224,7 @@ router.put('/:id', async (req, res) => {
 
     res.json({ success: true, data: responseData });
   } catch (error) {
-    console.error('Error updating schedule:', error);
+    console.error('❌ Error updating schedule:', error.message, error.stack);
     res.status(500).json({ error: error.message });
   }
 });
@@ -257,7 +257,7 @@ router.put('/:id/toggle', async (req, res) => {
 
     res.json({ success: true, data: schedule });
   } catch (error) {
-    console.error('Error toggling schedule:', error);
+    console.error('❌ Error toggling schedule:', error.message, error.stack);
     res.status(500).json({ error: error.message });
   }
 });
@@ -294,7 +294,7 @@ router.put('/:regionId/set-default/:scheduleId', async (req, res) => {
 
     res.json({ success: true, schedule });
   } catch (error) {
-    console.error('Error setting default schedule:', error);
+    console.error('❌ Error setting default schedule:', error.message, error.stack);
     res.status(500).json({ error: error.message });
   }
 });
@@ -315,7 +315,7 @@ router.delete('/:id', async (req, res) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error('Error deleting schedule:', error);
+    console.error('❌ Error deleting schedule:', error.message, error.stack);
     res.status(500).json({ error: error.message });
   }
 });
