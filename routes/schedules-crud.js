@@ -92,6 +92,14 @@ router.post('/', async (req, res) => {
 
     const schedule = dbResult.rows[0];
 
+    // Convert numeric day values to day names for response
+    const responseData = {
+      ...schedule,
+      cutoff_day_name: REVERSE_DAY_MAP[schedule.cutoff_day],
+      pack_day_name: REVERSE_DAY_MAP[schedule.pack_day],
+      delivery_day_name: REVERSE_DAY_MAP[schedule.delivery_day],
+    };
+
     // Also add to in-memory store for fast access
     store.create({
       id: schedule.id,
@@ -104,7 +112,7 @@ router.post('/', async (req, res) => {
       is_default: schedule.is_default,
     });
 
-    res.status(201).json({ success: true, data: schedule });
+    res.status(201).json({ success: true, data: responseData });
   } catch (error) {
     console.error('Error creating schedule:', error);
     res.status(500).json({ error: error.message || 'Unknown error' });
@@ -177,10 +185,18 @@ router.put('/:id', async (req, res) => {
 
     const schedule = dbResult.rows[0];
 
+    // Convert numeric day values to day names for response
+    const responseData = {
+      ...schedule,
+      cutoff_day_name: REVERSE_DAY_MAP[schedule.cutoff_day],
+      pack_day_name: REVERSE_DAY_MAP[schedule.pack_day],
+      delivery_day_name: REVERSE_DAY_MAP[schedule.delivery_day],
+    };
+
     // Also update in-memory store
     store.update(req.params.id, req.body);
 
-    res.json({ success: true, data: schedule });
+    res.json({ success: true, data: responseData });
   } catch (error) {
     console.error('Error updating schedule:', error);
     res.status(500).json({ error: error.message });
