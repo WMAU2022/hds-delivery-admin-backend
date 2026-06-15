@@ -38,14 +38,14 @@ router.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM delivery_schedules ORDER BY region_id, id');
     const data = result.rows.map(schedule => {
-      const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
-      const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
-      const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
+      const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+      const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+      const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
       return {
         ...schedule,
-        cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
-        pack_day_name: REVERSE_DAY_MAP[packNum],
-        delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
+        cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+        pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+        delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
       };
     });
     res.json({ data });
@@ -66,14 +66,14 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Schedule not found' });
     }
     const schedule = result.rows[0];
-    const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
-    const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
-    const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
+    const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+    const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+    const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
     res.json({
       ...schedule,
-      cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
-      pack_day_name: REVERSE_DAY_MAP[packNum],
-      delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
+      cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+      pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+      delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
     });
   } catch (error) {
     console.error('Error fetching schedule:', error);
@@ -113,15 +113,14 @@ router.post('/', async (req, res) => {
     const schedule = dbResult.rows[0];
 
     // Convert numeric day values to day names for response
-    // Handle both string and number formats from database
-    const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
-    const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
-    const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
+    const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+    const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+    const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
     const responseData = {
       ...schedule,
-      cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
-      pack_day_name: REVERSE_DAY_MAP[packNum],
-      delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
+      cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+      pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+      delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
     };
 
     // Also add to in-memory store for fast access
@@ -210,15 +209,14 @@ router.put('/:id', async (req, res) => {
     const schedule = dbResult.rows[0];
 
     // Convert numeric day values to day names for response
-    // Handle both string and number formats from database
-    const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
-    const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
-    const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
+    const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+    const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+    const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
     const responseData = {
       ...schedule,
-      cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
-      pack_day_name: REVERSE_DAY_MAP[packNum],
-      delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
+      cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+      pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+      delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
     };
 
     // Also update in-memory store
