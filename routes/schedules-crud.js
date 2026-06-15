@@ -37,7 +37,18 @@ function convertDayToNumber(dayName) {
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM delivery_schedules ORDER BY region_id, id');
-    res.json({ data: result.rows });
+    const data = result.rows.map(schedule => {
+      const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
+      const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
+      const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
+      return {
+        ...schedule,
+        cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
+        pack_day_name: REVERSE_DAY_MAP[packNum],
+        delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
+      };
+    });
+    res.json({ data });
   } catch (error) {
     console.error('Error fetching schedules:', error);
     res.status(500).json({ error: error.message });
@@ -54,7 +65,16 @@ router.get('/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
-    res.json(result.rows[0]);
+    const schedule = result.rows[0];
+    const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
+    const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
+    const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
+    res.json({
+      ...schedule,
+      cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
+      pack_day_name: REVERSE_DAY_MAP[packNum],
+      delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
+    });
   } catch (error) {
     console.error('Error fetching schedule:', error);
     res.status(500).json({ error: error.message });
@@ -93,11 +113,15 @@ router.post('/', async (req, res) => {
     const schedule = dbResult.rows[0];
 
     // Convert numeric day values to day names for response
+    // Handle both string and number formats from database
+    const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
+    const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
+    const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
     const responseData = {
       ...schedule,
-      cutoff_day_name: REVERSE_DAY_MAP[schedule.cutoff_day],
-      pack_day_name: REVERSE_DAY_MAP[schedule.pack_day],
-      delivery_day_name: REVERSE_DAY_MAP[schedule.delivery_day],
+      cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
+      pack_day_name: REVERSE_DAY_MAP[packNum],
+      delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
     };
 
     // Also add to in-memory store for fast access
@@ -186,11 +210,15 @@ router.put('/:id', async (req, res) => {
     const schedule = dbResult.rows[0];
 
     // Convert numeric day values to day names for response
+    // Handle both string and number formats from database
+    const cutoffNum = typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day;
+    const packNum = typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day;
+    const deliveryNum = typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day;
     const responseData = {
       ...schedule,
-      cutoff_day_name: REVERSE_DAY_MAP[schedule.cutoff_day],
-      pack_day_name: REVERSE_DAY_MAP[schedule.pack_day],
-      delivery_day_name: REVERSE_DAY_MAP[schedule.delivery_day],
+      cutoff_day_name: REVERSE_DAY_MAP[cutoffNum],
+      pack_day_name: REVERSE_DAY_MAP[packNum],
+      delivery_day_name: REVERSE_DAY_MAP[deliveryNum],
     };
 
     // Also update in-memory store
