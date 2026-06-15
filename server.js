@@ -88,11 +88,35 @@ async function runMigrations() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         code VARCHAR(10),
+        location VARCHAR(255),
+        cutoff_time VARCHAR(10),
+        enabled BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('    ✅ regions table ready');
+    
+    // Add missing columns to regions if they don't exist
+    console.log('  Checking for missing columns in regions...');
+    try {
+      await client.query(`ALTER TABLE regions ADD COLUMN location VARCHAR(255)`);
+      console.log('    ✅ Added location column to regions');
+    } catch (e) {
+      if (e.code !== '42701') throw e;
+    }
+    try {
+      await client.query(`ALTER TABLE regions ADD COLUMN cutoff_time VARCHAR(10)`);
+      console.log('    ✅ Added cutoff_time column to regions');
+    } catch (e) {
+      if (e.code !== '42701') throw e;
+    }
+    try {
+      await client.query(`ALTER TABLE regions ADD COLUMN enabled BOOLEAN DEFAULT true`);
+      console.log('    ✅ Added enabled column to regions');
+    } catch (e) {
+      if (e.code !== '42701') throw e;
+    }
     
     // Create suburbs table
     console.log('  Creating suburbs table...');
@@ -123,11 +147,35 @@ async function runMigrations() {
         hours VARCHAR(255),
         enabled BOOLEAN DEFAULT true,
         is_default BOOLEAN DEFAULT false,
+        location VARCHAR(255),
+        has_am BOOLEAN DEFAULT false,
+        has_business_hours BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('    ✅ delivery_schedules table ready');
+    
+    // Add missing columns if they don't exist
+    console.log('  Checking for missing columns in delivery_schedules...');
+    try {
+      await client.query(`ALTER TABLE delivery_schedules ADD COLUMN location VARCHAR(255)`);
+      console.log('    ✅ Added location column');
+    } catch (e) {
+      if (e.code !== '42701') throw e; // 42701 = column already exists
+    }
+    try {
+      await client.query(`ALTER TABLE delivery_schedules ADD COLUMN has_am BOOLEAN DEFAULT false`);
+      console.log('    ✅ Added has_am column');
+    } catch (e) {
+      if (e.code !== '42701') throw e;
+    }
+    try {
+      await client.query(`ALTER TABLE delivery_schedules ADD COLUMN has_business_hours BOOLEAN DEFAULT false`);
+      console.log('    ✅ Added has_business_hours column');
+    } catch (e) {
+      if (e.code !== '42701') throw e;
+    }
     
     // Create blackout_dates table
     console.log('  Creating blackout_dates table...');
