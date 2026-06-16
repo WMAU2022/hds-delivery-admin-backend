@@ -1,1 +1,1 @@
-web: DATABASE_URL=postgresql://postgres:iCvnJqAHHQnsafVjMHowoMnXUxrUZEyg@postgres.railway.internal:5432/railway node server.js
+web: DATABASE_URL=postgresql://postgres:iCvnJqAHHQnsafVjMHowoMnXUxrUZEyg@postgres.railway.internal:5432/railway HDS_API_URL=https://api.homedelivery.com.au HDS_EMAIL=tomi@workoutmeals.com.au HDS_PASSWORD=Zadomspremni01! node server.js
