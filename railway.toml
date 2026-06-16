@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+
+[start]
+cmd = "node server.js"
+
+[variables]
+DATABASE_URL = "postgresql://postgres:iCvnJqAHHQnsafVjMHowoMnXUrUZEyg@postgres.railway.internal:5432/railway"
