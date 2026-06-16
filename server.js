@@ -19,6 +19,7 @@ const publicRouter = require('./routes/public');
 const webhooksRouter = require('./routes/webhooks');
 const debugRouter = require('./routes/debug');
 const envDebugRouter = require('./routes/env-debug');
+const connectionTestRouter = require('./routes/connection-test');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -42,6 +43,7 @@ app.get('/health', (req, res) => {
 // Debug routes
 app.use('/debug', debugRouter);
 app.use('/env-debug', envDebugRouter);
+app.use('/connection-test', connectionTestRouter);
 
 // NOTE: All /api/public/delivery-options requests are now handled by publicRouter below.
 // Removed hardcoded endpoint to use dynamic suburbs-sync-store and delivery_schedules from database.
