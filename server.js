@@ -26,10 +26,19 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+// CORS enabled for API routes (except auth which uses redirects)
+app.use((req, res, next) => {
+  // Allow CORS for API routes except auth
+  if (!req.path.startsWith('/api/auth')) {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  next();
+});
 
 // Explicit CORS headers for checkout integration
+// Skip CORS middleware for auth routes (they need redirects)
 app.use((req, res, next) => {
+  if (req.path.startsWith('/api/auth')) return next();
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -45,19 +54,13 @@ app.use(bodyParser.json({
 }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Cookie middleware for OAuth state
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// OAuth callback redirect handler (for frontend)
-app.get('/auth/callback', (req, res) => {
-  const { code, state } = req.query;
-  if (!code) {
-    return res.status(400).send('Authorization code not found');
-  }
-  // Redirect to frontend with code and state
-  res.redirect(`/?code=${code}&state=${state}`);
 });
 
 // Debug routes
@@ -70,11 +73,11 @@ app.use('/connection-test', connectionTestRouter);
 
 // GET /api/schedules is now handled by schedulesCrudRouter above
 
+// Auth routes (Shopify OAuth) - MUST be before CORS restrictions
+app.use('/api/auth', authRouter);
+
 // Use real CRUD routes for schedules (in-memory store only)
 app.use('/api/schedules', schedulesCrudRouter);
-
-// Auth routes (Shopify OAuth)
-app.use('/api/auth', authRouter);
 
 // Webhooks (Shopify + Loop integration - no auth required, signature verified)
 app.use('/webhooks', webhooksRouter);
