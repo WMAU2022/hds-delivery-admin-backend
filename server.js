@@ -20,6 +20,7 @@ const webhooksRouter = require('./routes/webhooks');
 const debugRouter = require('./routes/debug');
 const envDebugRouter = require('./routes/env-debug');
 const connectionTestRouter = require('./routes/connection-test');
+const authRouter = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -49,6 +50,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// OAuth callback redirect handler (for frontend)
+app.get('/auth/callback', (req, res) => {
+  const { code, state } = req.query;
+  if (!code) {
+    return res.status(400).send('Authorization code not found');
+  }
+  // Redirect to frontend with code and state
+  res.redirect(`/?code=${code}&state=${state}`);
+});
+
 // Debug routes
 app.use('/debug', debugRouter);
 app.use('/env-debug', envDebugRouter);
@@ -61,6 +72,9 @@ app.use('/connection-test', connectionTestRouter);
 
 // Use real CRUD routes for schedules (in-memory store only)
 app.use('/api/schedules', schedulesCrudRouter);
+
+// Auth routes (Shopify OAuth)
+app.use('/api/auth', authRouter);
 
 // Webhooks (Shopify + Loop integration - no auth required, signature verified)
 app.use('/webhooks', webhooksRouter);
