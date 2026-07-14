@@ -122,6 +122,7 @@ async function runMigrations() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         code VARCHAR(10),
+        hds_zone VARCHAR(255),
         location VARCHAR(255),
         cutoff_time VARCHAR(10),
         enabled BOOLEAN DEFAULT true,
@@ -130,6 +131,14 @@ async function runMigrations() {
       )
     `);
     console.log('    ✅ regions table ready');
+    
+    // Add hds_zone column if it doesn't exist
+    try {
+      await client.query(`ALTER TABLE regions ADD COLUMN hds_zone VARCHAR(255)`);
+      console.log('    ✅ Added hds_zone column to regions');
+    } catch (e) {
+      if (e.code !== '42701') throw e; // 42701 = column already exists
+    }
     
     // Add missing columns to regions if they don't exist
     console.log('  Checking for missing columns in regions...');
@@ -298,17 +307,13 @@ async function seedInitialData() {
   try {
     console.log('🌱 Seeding initial data...');
     
-    // Check if regions exist
-    const regionsResult = await client.query('SELECT COUNT(*) FROM regions');
-    if (parseInt(regionsResult.rows[0].count) === 0) {
-      console.log('  Inserting regions...');
-      await client.query(`
-        INSERT INTO regions (name, code) VALUES
-        ('Sydney Metro', 'SYD'),
-        ('Melbourne Metro', 'MEL')
-      `);
-      console.log('    ✅ Regions inserted');
-    }
+    // Insert all 28 regions (safe with ON CONFLICT)
+    console.log('  Inserting all 28 regions...');
+    const fs = require('fs');
+    const path = require('path');
+    const regionsSql = fs.readFileSync(path.join(__dirname, 'migrations', '001-insert-regions.sql'), 'utf-8');
+    await client.query(regionsSql);
+    console.log('    ✅ All 28 regions ready');
     
     // Check if schedules exist
     const schedulesResult = await client.query('SELECT COUNT(*) FROM delivery_schedules');
@@ -388,3 +393,4 @@ module.exports = app;
 // Force redeploy Mon Apr 14 14:11:00 AEST 2026 - 27 regions fix
 // Force rebuild Tue Jun 16 14:40:25 AEST 2026
 // Force redeploy Thu Jul  2 14:21:38 AEST 2026
+// Force rebuild Tue Jul 14 15:10:00 AEST 2026 - insert 28 regions on startup
