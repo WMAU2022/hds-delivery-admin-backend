@@ -1,7 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const regionsStore = require('../lib/regions-store');
-const scheduleStore = require('../lib/memory-store');
+const pool = require('../lib/db');
+
+const REVERSE_DAY_MAP = {
+  0: 'Sunday',
+  1: 'Monday',
+  2: 'Tuesday',
+  3: 'Wednesday',
+  4: 'Thursday',
+  5: 'Friday',
+  6: 'Saturday',
+};
 
 // ⚠️ BULK ROUTES FIRST - must come before /:id to avoid pattern matching issues
 
@@ -79,10 +89,32 @@ router.post('/bulk/disable', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const allRegions = regionsStore.getAll();
-    const regionsWithSchedules = allRegions.map(region => ({
-      ...region,
-      schedules: scheduleStore.getByRegion(region.id),
-    }));
+    
+    // Fetch schedules from PostgreSQL for each region
+    const regionsWithSchedules = await Promise.all(
+      allRegions.map(async (region) => {
+        const result = await pool.query(
+          'SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY id',
+          [region.id]
+        );
+        const schedules = result.rows.map(schedule => {
+          const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+          const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+          const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
+          return {
+            ...schedule,
+            cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+            pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+            delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
+          };
+        });
+        return {
+          ...region,
+          schedules: schedules,
+        };
+      })
+    );
+    
     res.json({
       success: true,
       data: regionsWithSchedules,
@@ -106,7 +138,23 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Region not found' });
     }
 
-    const schedules = scheduleStore.getByRegion(id);
+    // Fetch schedules from PostgreSQL, not in-memory store
+    const result = await pool.query(
+      'SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY id',
+      [parseInt(id)]
+    );
+    const schedules = result.rows.map(schedule => {
+      const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+      const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+      const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
+      return {
+        ...schedule,
+        cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+        pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+        delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
+      };
+    });
+
     res.json({
       success: true,
       data: {
@@ -123,11 +171,26 @@ router.get('/:id', async (req, res) => {
 /**
  * GET /api/regions/:id/schedules
  * Frontend requests this endpoint to get schedules for a region
+ * NOW READS FROM POSTGRESQL, NOT IN-MEMORY STORE
  */
 router.get('/:id/schedules', async (req, res) => {
   try {
     const { id } = req.params;
-    const schedules = scheduleStore.getByRegion(id);
+    const result = await pool.query(
+      'SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY id',
+      [parseInt(id)]
+    );
+    const schedules = result.rows.map(schedule => {
+      const cutoffNum = schedule.cutoff_day != null ? (typeof schedule.cutoff_day === 'string' ? parseInt(schedule.cutoff_day, 10) : schedule.cutoff_day) : null;
+      const packNum = schedule.pack_day != null ? (typeof schedule.pack_day === 'string' ? parseInt(schedule.pack_day, 10) : schedule.pack_day) : null;
+      const deliveryNum = schedule.delivery_day != null ? (typeof schedule.delivery_day === 'string' ? parseInt(schedule.delivery_day, 10) : schedule.delivery_day) : null;
+      return {
+        ...schedule,
+        cutoff_day_name: cutoffNum != null ? REVERSE_DAY_MAP[cutoffNum] : null,
+        pack_day_name: packNum != null ? REVERSE_DAY_MAP[packNum] : null,
+        delivery_day_name: deliveryNum != null ? REVERSE_DAY_MAP[deliveryNum] : null,
+      };
+    });
     res.json({
       success: true,
       data: schedules,
