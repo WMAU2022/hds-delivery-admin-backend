@@ -333,13 +333,19 @@ router.get('/delivery-options', async (req, res) => {
 
     for (const schedule of schedules) {
       try {
+        // Convert numeric day values to day names
+        const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const cutoffDayName = typeof schedule.cutoff_day === 'number' ? dayMap[schedule.cutoff_day] : schedule.cutoff_day;
+        const packDayName = typeof schedule.pack_day === 'number' ? dayMap[schedule.pack_day] : schedule.pack_day;
+        const deliveryDayName = typeof schedule.delivery_day === 'number' ? dayMap[schedule.delivery_day] : schedule.delivery_day;
+        
         // Generate 6 upcoming delivery dates for this schedule
         for (let i = 0; i < 6; i++) {
           const deliveryDate = calculateNextDeliveryDate(
             new Date(today.getTime() + (i * 7 * 24 * 60 * 60 * 1000)), // Add i weeks
-            schedule.cutoff_day,
-            schedule.pack_day,
-            schedule.delivery_day
+            cutoffDayName,
+            packDayName,
+            deliveryDayName
           );
 
           // Skip if date is blackout
@@ -348,7 +354,7 @@ router.get('/delivery-options', async (req, res) => {
 
           // Calculate pack date from delivery date and pack day
           const deliveryDayNum = deliveryDate.getDay();
-          const packDayNum = reverseDayMap[schedule.pack_day];
+          const packDayNum = reverseDayMap[packDayName];
           const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
           const packDateObj = new Date(deliveryDate);
           packDateObj.setDate(packDateObj.getDate() - dayDifference);
@@ -361,12 +367,12 @@ router.get('/delivery-options', async (req, res) => {
 
           options.push({
             schedule_id: schedule.id,
-            delivery_day: schedule.delivery_day,
+            delivery_day: deliveryDayName,
             delivery_window: schedule.hours || 'Standard Hours',
-            cutoff_info: `${getDayName(schedule.cutoff_day)} 2 PM`,
+            cutoff_info: `${cutoffDayName} 2 PM`,
             delivery_date: deliveryDate.toISOString().split('T')[0],
             pack_date: packDateStr,
-            pack_day: schedule.pack_day,
+            pack_day: packDayName,
             production_date: productionDateStr,
             formatted_date: deliveryDate.toLocaleDateString('en-AU', {
               weekday: 'long',
