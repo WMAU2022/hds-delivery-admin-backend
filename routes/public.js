@@ -338,6 +338,7 @@ router.get('/delivery-options', async (req, res) => {
         const cutoffDayName = typeof schedule.cutoff_day === 'number' ? dayMap[schedule.cutoff_day] : schedule.cutoff_day;
         const packDayName = typeof schedule.pack_day === 'number' ? dayMap[schedule.pack_day] : schedule.pack_day;
         const deliveryDayName = typeof schedule.delivery_day === 'number' ? dayMap[schedule.delivery_day] : schedule.delivery_day;
+        console.log(`📅 Processing schedule ${schedule.id}: cutoff=${cutoffDayName}, pack=${packDayName}, delivery=${deliveryDayName}`);
         
         // Generate 6 upcoming delivery dates for this schedule
         for (let i = 0; i < 6; i++) {
@@ -400,9 +401,16 @@ router.get('/delivery-options', async (req, res) => {
     }
 
     if (options.length === 0) {
+      console.log(`⚠️  No delivery dates calculated. Schedules found: ${schedules.length}, Options generated: ${options.length}`);
       return res.status(400).json({
         success: false,
         error: 'No available delivery dates found',
+        debug: {
+          postcode: postcode,
+          region: region,
+          schedules_count: schedules.length,
+          options_count: options.length,
+        },
       });
     }
 
