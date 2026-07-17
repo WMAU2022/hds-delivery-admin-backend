@@ -295,6 +295,7 @@ router.get('/delivery-options', async (req, res) => {
 
     // 3. Get enabled schedules for this region
     let schedules = [];
+    let dbError = false;
     try {
       const schedulesResult = await pool.query(
         `SELECT * FROM delivery_schedules WHERE region_id = $1 AND enabled = true ORDER BY delivery_day`,
@@ -303,14 +304,20 @@ router.get('/delivery-options', async (req, res) => {
       schedules = schedulesResult.rows;
     } catch (e) {
       console.warn('Schedules lookup failed:', e.message);
-      // Use default schedules
-      schedules = [
-        { delivery_day: 'Sunday', pack_day: 'Saturday', cutoff_day: 4 },
-        { delivery_day: 'Friday', pack_day: 'Thursday', cutoff_day: 4 },
-      ];
+      dbError = true;
     }
 
-    if (schedules.length === 0) {
+    // If no schedules found and no database error, location is not serviceable
+    if (schedules.length === 0 && !dbError) {
+      return res.status(404).json({
+        success: false,
+        error: `Location ${suburb.name} (${postcode}) is not available for delivery. No schedules configured.`,
+        serviceable: false,
+      });
+    }
+
+    // If database error AND no schedules, return error (can't determine availability)
+    if (schedules.length === 0 && dbError) {
       return res.status(400).json({
         success: false,
         error: `No delivery schedules available for region ${region.name}`,
