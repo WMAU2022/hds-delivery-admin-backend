@@ -229,19 +229,37 @@ router.get('/delivery-options', async (req, res) => {
       });
     }
 
-    // 1. Look up the EXACT suburb + postcode combination from database
+    // 1. Look up the EXACT suburb + postcode combination
+    // TRY IN-MEMORY STORE FIRST (has all HDS data), then fall back to PostgreSQL
     let suburbRecord = null;
+    
+    // Try in-memory store first
     try {
-      const suburbResult = await pool.query(
-        `SELECT id, name, postcode, state, region_id FROM suburbs 
-         WHERE postcode::text = $1 AND UPPER(name) = UPPER($2)`,
-        [postcode.toString(), suburb.toString()]
-      );
-      if (suburbResult.rows.length > 0) {
-        suburbRecord = suburbResult.rows[0];
+      if (suburbsStore && typeof suburbsStore.getAll === 'function') {
+        const allSuburbs = suburbsStore.getAll();
+        suburbRecord = allSuburbs.find(s => 
+          s.postcode === postcode.toString() && 
+          s.name.toUpperCase() === suburb.toString().toUpperCase()
+        );
       }
-    } catch (dbError) {
-      console.warn('Database lookup failed:', dbError.message);
+    } catch (e) {
+      console.warn('In-memory store lookup failed:', e.message);
+    }
+    
+    // Fallback to PostgreSQL if not found in store
+    if (!suburbRecord) {
+      try {
+        const suburbResult = await pool.query(
+          `SELECT id, name, postcode, state, region_id FROM suburbs 
+           WHERE postcode::text = $1 AND UPPER(name) = UPPER($2)`,
+          [postcode.toString(), suburb.toString()]
+        );
+        if (suburbResult.rows.length > 0) {
+          suburbRecord = suburbResult.rows[0];
+        }
+      } catch (dbError) {
+        console.warn('Database lookup failed:', dbError.message);
+      }
     }
 
     // Return error if suburb not found or doesn't belong to postcode
