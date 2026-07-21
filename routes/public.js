@@ -219,45 +219,60 @@ router.get('/pick-pack-date', async (req, res) => {
  */
 router.get('/delivery-options', async (req, res) => {
   try {
-    const { postcode } = req.query;
+    const { postcode, suburb } = req.query;
 
-    if (!postcode) {
+    // REQUIRE BOTH suburb and postcode
+    if (!postcode || !suburb) {
       return res.status(400).json({
         success: false,
-        error: 'postcode query parameter required',
+        error: 'suburb and postcode are required query parameters',
       });
     }
 
-    // 1. Look up suburb by postcode (use in-memory store first)
-    let suburb = null;
+    // 1. Look up the EXACT suburb + postcode combination from database
+    let suburbRecord = null;
     try {
-      suburb = suburbsStore.findByPostcode(postcode.toString());
-    } catch (e) {
-      // Fallback to PostgreSQL
-      try {
-        const suburbResult = await pool.query(
-          `SELECT id, name, postcode, state, region_id FROM suburbs WHERE postcode::text = $1`,
-          [postcode.toString()]
-        );
-        if (suburbResult.rows.length > 0) {
-          suburb = suburbResult.rows[0];
-        }
-      } catch (dbError) {
-        console.warn('Database lookup failed:', dbError.message);
+      const suburbResult = await pool.query(
+        `SELECT id, name, postcode, state, region_id FROM suburbs 
+         WHERE postcode::text = $1 AND UPPER(name) = UPPER($2)`,
+        [postcode.toString(), suburb.toString()]
+      );
+      if (suburbResult.rows.length > 0) {
+        suburbRecord = suburbResult.rows[0];
       }
+    } catch (dbError) {
+      console.warn('Database lookup failed:', dbError.message);
     }
 
-    if (!suburb) {
-      return res.status(404).json({
+    // Return error if suburb not found or doesn't belong to postcode
+    if (!suburbRecord) {
+      return res.status(200).json({
         success: false,
-        error: `Postcode ${postcode} not found`,
+        serviceable: false,
+        error: `${suburb} (${postcode}) is not available for delivery`,
       });
     }
 
-    if (!suburb.region_id) {
+    // Reject placeholder/depot suburbs
+    const placeholderPatterns = [
+      /DELIVERY CENTRE/i,
+      /DEPOT/i,
+      /MAIL CENTRE/i,
+      /PARCEL FACILITY/i,
+    ];
+    
+    if (placeholderPatterns.some(pattern => pattern.test(suburbRecord.name))) {
+      return res.status(200).json({
+        success: false,
+        serviceable: false,
+        error: `${suburbRecord.name} (${postcode}) is a logistics facility, not a residential area`,
+      });
+    }
+
+    if (!suburbRecord.region_id) {
       return res.status(400).json({
         success: false,
-        error: `Postcode ${postcode} is not assigned to a delivery region`,
+        error: `${suburbRecord.name} (${postcode}) is not assigned to a delivery region`,
       });
     }
 
@@ -266,7 +281,7 @@ router.get('/delivery-options', async (req, res) => {
     try {
       const regionResult = await pool.query(
         `SELECT id, name FROM regions WHERE id = $1`,
-        [suburb.region_id]
+        [suburbRecord.region_id]
       );
       if (regionResult.rows.length > 0) {
         region = regionResult.rows[0];
@@ -288,8 +303,8 @@ router.get('/delivery-options', async (req, res) => {
         9: 'Brisbane Metro',
       };
       region = {
-        id: suburb.region_id,
-        name: regionNames[suburb.region_id] || `Region ${suburb.region_id}`,
+        id: suburbRecord.region_id,
+        name: regionNames[suburbRecord.region_id] || `Region ${suburbRecord.region_id}`,
       };
     }
 
@@ -299,7 +314,7 @@ router.get('/delivery-options', async (req, res) => {
     try {
       const schedulesResult = await pool.query(
         `SELECT * FROM delivery_schedules WHERE region_id = $1 AND enabled = true ORDER BY delivery_day`,
-        [suburb.region_id]
+        [suburbRecord.region_id]
       );
       schedules = schedulesResult.rows;
     } catch (e) {
@@ -424,9 +439,9 @@ router.get('/delivery-options', async (req, res) => {
     res.json({
       success: true,
       suburb: {
-        name: suburb.name,
-        postcode: suburb.postcode,
-        state: suburb.state,
+        name: suburbRecord.name,
+        postcode: suburbRecord.postcode,
+        state: suburbRecord.state,
       },
       region: {
         id: region.id,
