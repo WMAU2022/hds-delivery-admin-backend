@@ -9,3 +9,4 @@ DATABASE_URL = "postgresql://postgres:iCvnJqAHHQnsafVjMHowoMnXUxrUZEyg@postgres.
 HDS_API_URL = "https://api.homedelivery.com.au"
 HDS_EMAIL = "tomi@workoutmeals.com.au"
 HDS_PASSWORD = "Zadomspremni01!"
+TZ = "Australia/Sydney"
