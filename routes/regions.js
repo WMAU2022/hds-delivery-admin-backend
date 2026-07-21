@@ -24,7 +24,7 @@ router.post('/bulk/toggle', async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-    const updated = regionsStore.toggleMultiple(ids);
+    const updated = await regionsStore.toggleMultiple(ids);
     res.json({
       success: true,
       data: updated,
@@ -46,7 +46,7 @@ router.post('/bulk/enable', async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-    const updated = regionsStore.enableMultiple(ids);
+    const updated = await regionsStore.enableMultiple(ids);
     res.json({
       success: true,
       data: updated,
@@ -68,7 +68,7 @@ router.post('/bulk/disable', async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-    const updated = regionsStore.disableMultiple(ids);
+    const updated = await regionsStore.disableMultiple(ids);
     res.json({
       success: true,
       data: updated,
@@ -88,7 +88,7 @@ router.post('/bulk/disable', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const allRegions = regionsStore.getAll();
+    const allRegions = await regionsStore.getAll();
     
     // Fetch schedules from PostgreSQL for each region
     const regionsWithSchedules = await Promise.all(
@@ -132,13 +132,13 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const region = regionsStore.getById(id);
+    const region = await regionsStore.getById(id);
 
     if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
-    // Fetch schedules from PostgreSQL, not in-memory store
+    // Fetch schedules from PostgreSQL
     const result = await pool.query(
       'SELECT * FROM delivery_schedules WHERE region_id = $1 ORDER BY id',
       [parseInt(id)]
@@ -208,7 +208,7 @@ router.get('/:id/schedules', async (req, res) => {
 router.put('/:id/toggle', async (req, res) => {
   try {
     const { id } = req.params;
-    const region = regionsStore.toggle(id);
+    const region = await regionsStore.toggle(id);
 
     if (!region) {
       return res.status(404).json({ error: 'Region not found' });
@@ -232,7 +232,7 @@ router.put('/:id/toggle', async (req, res) => {
 router.put('/:id/enable', async (req, res) => {
   try {
     const { id } = req.params;
-    const region = regionsStore.enable(id);
+    const region = await regionsStore.enable(id);
 
     if (!region) {
       return res.status(404).json({ error: 'Region not found' });
@@ -255,7 +255,7 @@ router.put('/:id/enable', async (req, res) => {
 router.put('/:id/disable', async (req, res) => {
   try {
     const { id } = req.params;
-    const region = regionsStore.disable(id);
+    const region = await regionsStore.disable(id);
 
     if (!region) {
       return res.status(404).json({ error: 'Region not found' });
@@ -289,13 +289,13 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'At least one field to update is required' });
     }
 
-    const region = regionsStore.getById(id);
+    const region = await regionsStore.getById(id);
     if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
     // Update the region with provided fields
-    const updated = regionsStore.update(id, updates);
+    const updated = await regionsStore.update(id, updates);
 
     console.log(`✅ Region ${id} updated:`, updates);
     res.json({
@@ -324,13 +324,13 @@ router.put('/:id/cutoff-time', async (req, res) => {
       return res.status(400).json({ error: 'Invalid time format. Use HH:MM or HH:MM AM/PM' });
     }
 
-    const region = regionsStore.getById(id);
+    const region = await regionsStore.getById(id);
     if (!region) {
       return res.status(404).json({ error: 'Region not found' });
     }
 
     // Update the region with the new cutoff time
-    const updated = regionsStore.update(id, { cutoff_time: cutoffTime });
+    const updated = await regionsStore.update(id, { cutoff_time: cutoffTime });
 
     console.log(`✅ Cutoff time for region ${id} updated to ${cutoffTime}`);
     res.json({
