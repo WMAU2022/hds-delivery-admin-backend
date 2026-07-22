@@ -307,13 +307,21 @@ async function seedInitialData() {
   try {
     console.log('🌱 Seeding initial data...');
     
-    // Insert all 28 regions (safe with ON CONFLICT)
-    console.log('  Inserting all 28 regions...');
-    const fs = require('fs');
-    const path = require('path');
-    const regionsSql = fs.readFileSync(path.join(__dirname, 'migrations', '001-insert-regions.sql'), 'utf-8');
-    await client.query(regionsSql);
-    console.log('    ✅ All 28 regions ready');
+    // Check if regions already exist (don't re-seed on every startup)
+    const existingRegions = await client.query('SELECT COUNT(*) as count FROM regions');
+    const regionCount = parseInt(existingRegions.rows[0].count);
+    
+    if (regionCount === 0) {
+      // Only seed if regions table is empty
+      console.log('  Inserting all 28 regions...');
+      const fs = require('fs');
+      const path = require('path');
+      const regionsSql = fs.readFileSync(path.join(__dirname, 'migrations', '001-insert-regions.sql'), 'utf-8');
+      await client.query(regionsSql);
+      console.log('    ✅ All 28 regions inserted');
+    } else {
+      console.log(`  ✅ ${regionCount} regions already exist (skipping seed)`);
+    }
     
     // Check if schedules exist
     const schedulesResult = await client.query('SELECT COUNT(*) FROM delivery_schedules');
