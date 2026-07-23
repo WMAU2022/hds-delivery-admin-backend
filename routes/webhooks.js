@@ -147,6 +147,177 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
   }
 }
 
+// Enrich order with HDS delivery data from note_attributes
+async function enrichOrderWithHDSData(order) {
+  try {
+    const pool = require('../lib/db');
+    
+    // Extract basic delivery info from note_attributes
+    let deliveryDate = null;
+    let deliveryLocationId = null;
+    let deliveryTime = null;
+    
+    if (order.note_attributes && Array.isArray(order.note_attributes)) {
+      for (const attr of order.note_attributes) {
+        if (attr.name === 'Delivery-Date') deliveryDate = attr.value;
+        if (attr.name === 'Delivery-Location-Id') deliveryLocationId = attr.value;
+        if (attr.name === 'Delivery-Time') deliveryTime = attr.value;
+      }
+    }
+
+    if (!deliveryDate || !deliveryLocationId) {
+      console.log('⚠️ Missing delivery date or location ID in note_attributes');
+      return null;
+    }
+
+    // Query suburbs to find region by postcode
+    const suburbResult = await pool.query(
+      `SELECT id, name, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1`,
+      [deliveryLocationId]
+    );
+
+    if (suburbResult.rows.length === 0) {
+      console.log(`⚠️ Suburb not found for postcode: ${deliveryLocationId}`);
+      return null;
+    }
+
+    const suburb = suburbResult.rows[0];
+    const regionId = suburb.region_id;
+
+    // Get region info
+    const regionResult = await pool.query(
+      `SELECT id, name FROM regions WHERE id = $1`,
+      [regionId]
+    );
+
+    const region = regionResult.rows[0] || { id: regionId, name: 'Unknown Region' };
+
+    // Parse delivery date and find matching schedule
+    const deliveryDateObj = new Date(deliveryDate + 'T00:00:00Z');
+    const deliveryDayNum = deliveryDateObj.getDay();
+    const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const deliveryDayName = dayMap[deliveryDayNum];
+
+    // Get schedule for this region and delivery day
+    const scheduleResult = await pool.query(
+      `SELECT * FROM delivery_schedules WHERE region_id = $1 AND delivery_day = $2 AND enabled = true LIMIT 1`,
+      [regionId, deliveryDayName]
+    );
+
+    if (scheduleResult.rows.length === 0) {
+      console.log(`⚠️ No schedule found for ${deliveryDayName} in region ${region.name}`);
+      return null;
+    }
+
+    const schedule = scheduleResult.rows[0];
+
+    // Calculate pack date from schedule
+    const reverseDayMap = {
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6
+    };
+
+    const packDayNum = reverseDayMap[schedule.pack_day];
+    const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
+    const packDateObj = new Date(deliveryDateObj);
+    packDateObj.setDate(packDateObj.getDate() - dayDifference);
+
+    // Calculate production date (1 day before pack date)
+    const productionDateObj = new Date(packDateObj);
+    productionDateObj.setDate(productionDateObj.getDate() - 1);
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+
+    return {
+      hds_delivery_date: deliveryDate,
+      hds_delivery_formatted: deliveryDateObj.toLocaleDateString('en-AU', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+      hds_delivery_day: deliveryDayName,
+      hds_delivery_window: deliveryTime && deliveryTime.includes('12:00 AM') ? 'AM' : 'BUSINESS_HOURS',
+      hds_schedule_id: schedule.id.toString(),
+      hds_pack_date: formatDate(packDateObj),
+      hds_production_date: formatDate(productionDateObj),
+      hds_region: region.name,
+      hds_suburb: suburb.name,
+      hds_postcode: deliveryLocationId,
+    };
+  } catch (err) {
+    console.error('❌ Error enriching order with HDS data:', err.message);
+    return null;
+  }
+}
+
+// Update order note_attributes with HDS enriched data
+async function updateOrderNoteAttributes(orderId, hdsData) {
+  try {
+    const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
+    const shopifyStore = process.env.SHOPIFY_STORE;
+
+    if (!shopifyToken || !shopifyStore) {
+      console.error('Missing Shopify credentials');
+      return false;
+    }
+
+    const getOrderUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
+    const orderResponse = await axios.get(getOrderUrl, {
+      headers: {
+        'X-Shopify-Access-Token': shopifyToken,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const order = orderResponse.data.order;
+
+    // Merge existing note_attributes with new HDS data
+    const updatedAttributes = order.note_attributes ? [...order.note_attributes] : [];
+
+    // Add or update HDS attributes
+    for (const [key, value] of Object.entries(hdsData)) {
+      const existingIndex = updatedAttributes.findIndex(attr => attr.name === key);
+      if (existingIndex >= 0) {
+        updatedAttributes[existingIndex].value = value;
+      } else {
+        updatedAttributes.push({ name: key, value: value });
+      }
+    }
+
+    // Update order with new note_attributes
+    const updateUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
+    await axios.put(
+      updateUrl,
+      {
+        order: {
+          id: orderId,
+          note_attributes: updatedAttributes,
+        },
+      },
+      {
+        headers: {
+          'X-Shopify-Access-Token': shopifyToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('✅ Order note_attributes updated with HDS data:', {
+      orderId,
+      hds_delivery_date: hdsData.hds_delivery_date,
+      hds_schedule_id: hdsData.hds_schedule_id,
+      hds_pack_date: hdsData.hds_pack_date,
+      hds_production_date: hdsData.hds_production_date,
+    });
+
+    return true;
+  } catch (err) {
+    console.error('❌ Error updating order note_attributes:', err.message);
+    return false;
+  }
+}
+
 // Main webhook handler for orders/create
 router.post('/shopify/orders/create', async (req, res) => {
   try {
@@ -162,15 +333,20 @@ router.post('/shopify/orders/create', async (req, res) => {
 
     console.log(`📦 Order created webhook received: #${order.name}`);
 
-    // Extract HDS delivery data from order
-    const hdsData = extractHDSData(order);
+    // Check if this is a delivery order (has Delivery-Date in note_attributes)
+    const hasDeliveryDate = order.note_attributes && order.note_attributes.some(
+      attr => attr.name === 'Delivery-Date'
+    );
 
-    if (hdsData) {
-      console.log('✅ HDS delivery data found in order');
-      // Update line items with delivery properties
-      await updateLineItemsWithDeliveryData(orderId, hdsData);
+    if (hasDeliveryDate) {
+      console.log('🔍 Detected delivery order - enriching with HDS data...');
+      const hdsData = await enrichOrderWithHDSData(order);
+      
+      if (hdsData) {
+        await updateOrderNoteAttributes(orderId, hdsData);
+      }
     } else {
-      console.log('ℹ️ No HDS delivery data in order (standard checkout)');
+      console.log('ℹ️ No delivery date in order (standard checkout)');
     }
 
     // Always respond with 200 to acknowledge webhook receipt
