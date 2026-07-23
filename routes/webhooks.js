@@ -253,17 +253,16 @@ async function enrichOrderWithHDSData(order) {
     }
 
     const schedule = scheduleResult.rows[0];
-    console.log(`📅 Found schedule: id=${schedule.id}, pack_day=${schedule.pack_day}`);
+    console.log(`📅 Found schedule: id=${schedule.id}, pack_day=${schedule.pack_day}, pack_day type=${typeof schedule.pack_day}`);
 
     // Calculate pack date from schedule
-    const reverseDayMap = {
-      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
-      'Thursday': 4, 'Friday': 5, 'Saturday': 6
-    };
-
-    const packDayNum = reverseDayMap[schedule.pack_day];
+    // Note: pack_day is stored in database as a NUMBER (0-6), not a string
+    const packDayNum = typeof schedule.pack_day === 'string' 
+      ? parseInt(schedule.pack_day) 
+      : schedule.pack_day;
+    
     const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
-    console.log(`📅 Pack day: ${schedule.pack_day} (${packDayNum}), dayDifference=${dayDifference}`);
+    console.log(`📅 Pack day number: ${packDayNum}, dayDifference=${dayDifference}`);
     
     const packDateObj = new Date(deliveryDateObj);
     console.log(`✅ Created packDateObj copy: ${packDateObj.toISOString()}`);
