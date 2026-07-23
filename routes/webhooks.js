@@ -171,17 +171,37 @@ async function enrichOrderWithHDSData(order) {
     }
 
     // Query suburbs to find region by postcode
-    const suburbResult = await pool.query(
-      `SELECT id, name, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1`,
-      [deliveryLocationId]
-    );
+    // Try in-memory store first (6942 suburbs from HDS sync)
+    const suburbsStore = require('../lib/suburbs-sync-store');
+    let suburb = null;
+    
+    try {
+      if (suburbsStore && typeof suburbsStore.findByPostcode === 'function') {
+        suburb = suburbsStore.findByPostcode(deliveryLocationId.toString());
+      }
+    } catch (e) {
+      console.warn(`⚠️ Suburbs store lookup failed: ${e.message}`);
+    }
+    
+    // Fallback to PostgreSQL if not found in memory
+    if (!suburb) {
+      try {
+        const suburbResult = await pool.query(
+          `SELECT id, name, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1`,
+          [deliveryLocationId]
+        );
+        if (suburbResult.rows.length > 0) {
+          suburb = suburbResult.rows[0];
+        }
+      } catch (dbError) {
+        console.warn(`⚠️ Database lookup failed: ${dbError.message}`);
+      }
+    }
 
-    if (suburbResult.rows.length === 0) {
+    if (!suburb) {
       console.log(`⚠️ Suburb not found for postcode: ${deliveryLocationId}`);
       return null;
     }
-
-    const suburb = suburbResult.rows[0];
     const regionId = suburb.region_id;
 
     // Get region info
