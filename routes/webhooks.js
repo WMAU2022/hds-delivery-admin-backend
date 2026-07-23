@@ -218,10 +218,17 @@ async function enrichOrderWithHDSData(order) {
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const deliveryDayName = dayMap[deliveryDayNum];
 
+    // Convert day name to numeric (0-6, Sunday-Saturday)
+    const dayNameToNum = {
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6
+    };
+    const deliveryDayNum = dayNameToNum[deliveryDayName];
+    
     // Get schedule for this region and delivery day
     const scheduleResult = await pool.query(
       `SELECT * FROM delivery_schedules WHERE region_id = $1 AND delivery_day = $2 AND enabled = true LIMIT 1`,
-      [regionId, deliveryDayName]
+      [regionId, deliveryDayNum]
     );
 
     if (scheduleResult.rows.length === 0) {
