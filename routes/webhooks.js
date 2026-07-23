@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
+const suburbsStore = require('../lib/suburbs-sync-store');
 
 // Format delivery time slot with hours
 function formatDeliveryTime(deliveryTime) {
@@ -172,7 +173,6 @@ async function enrichOrderWithHDSData(order) {
 
     // Query suburbs to find region by postcode
     // Try in-memory store first (6942 suburbs from HDS sync)
-    const suburbsStore = require('../lib/suburbs-sync-store');
     let suburb = null;
     
     try {
