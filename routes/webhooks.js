@@ -213,7 +213,27 @@ async function enrichOrderWithHDSData(order) {
     const region = regionResult.rows[0] || { id: regionId, name: 'Unknown Region' };
 
     // Parse delivery date and find matching schedule
-    const deliveryDateObj = new Date(deliveryDate + 'T00:00:00Z');
+    console.log(`📦 DEBUG: deliveryDate value = "${deliveryDate}" (type: ${typeof deliveryDate})`);
+    
+    // Validate and parse date
+    let deliveryDateObj;
+    try {
+      // Handle different date formats
+      const cleanDate = String(deliveryDate).trim();
+      if (!cleanDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        console.error(`Invalid date format: ${cleanDate}. Expected YYYY-MM-DD`);
+        return null;
+      }
+      deliveryDateObj = new Date(cleanDate + 'T00:00:00Z');
+      if (isNaN(deliveryDateObj.getTime())) {
+        console.error(`Invalid date value after parsing: ${cleanDate}`);
+        return null;
+      }
+    } catch (dateErr) {
+      console.error(`Date parsing error: ${dateErr.message}`);
+      return null;
+    }
+    
     const deliveryDayNum = deliveryDateObj.getDay();
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const deliveryDayName = dayMap[deliveryDayNum];
