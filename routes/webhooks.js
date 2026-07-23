@@ -225,6 +225,8 @@ async function enrichOrderWithHDSData(order) {
         return null;
       }
       deliveryDateObj = new Date(cleanDate + 'T00:00:00Z');
+      console.log(`✅ Parsed deliveryDateObj: ${deliveryDateObj.toISOString()}, time=${deliveryDateObj.getTime()}`);
+      
       if (isNaN(deliveryDateObj.getTime())) {
         console.error(`Invalid date value after parsing: ${cleanDate}`);
         return null;
@@ -235,6 +237,7 @@ async function enrichOrderWithHDSData(order) {
     }
     
     const deliveryDayNum = deliveryDateObj.getDay();
+    console.log(`📅 Delivery day number: ${deliveryDayNum}`);
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const deliveryDayName = dayMap[deliveryDayNum];
     
@@ -250,6 +253,7 @@ async function enrichOrderWithHDSData(order) {
     }
 
     const schedule = scheduleResult.rows[0];
+    console.log(`📅 Found schedule: id=${schedule.id}, pack_day=${schedule.pack_day}`);
 
     // Calculate pack date from schedule
     const reverseDayMap = {
@@ -259,12 +263,28 @@ async function enrichOrderWithHDSData(order) {
 
     const packDayNum = reverseDayMap[schedule.pack_day];
     const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
+    console.log(`📅 Pack day: ${schedule.pack_day} (${packDayNum}), dayDifference=${dayDifference}`);
+    
     const packDateObj = new Date(deliveryDateObj);
-    packDateObj.setDate(packDateObj.getDate() - dayDifference);
+    console.log(`✅ Created packDateObj copy: ${packDateObj.toISOString()}`);
+    
+    try {
+      packDateObj.setDate(packDateObj.getDate() - dayDifference);
+      console.log(`✅ Set pack date: ${packDateObj.toISOString()}`);
+    } catch (setErr) {
+      console.error(`❌ Error setting pack date: ${setErr.message}`);
+      return null;
+    }
 
     // Calculate production date (1 day before pack date)
     const productionDateObj = new Date(packDateObj);
-    productionDateObj.setDate(productionDateObj.getDate() - 1);
+    try {
+      productionDateObj.setDate(productionDateObj.getDate() - 1);
+      console.log(`✅ Set production date: ${productionDateObj.toISOString()}`);
+    } catch (prodErr) {
+      console.error(`❌ Error setting production date: ${prodErr.message}`);
+      return null;
+    }
 
     const formatDate = (date) => date.toISOString().split('T')[0];
 
