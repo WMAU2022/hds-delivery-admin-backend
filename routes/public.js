@@ -380,13 +380,28 @@ router.get('/delivery-options', async (req, res) => {
         const deliveryDayName = typeof schedule.delivery_day === 'number' ? dayMap[schedule.delivery_day] : schedule.delivery_day;
         console.log(`📅 Processing schedule ${schedule.id}: cutoff=${cutoffDayName}, pack=${packDayName}, delivery=${deliveryDayName}`);
         
+        // Get cutoff time from region (default to 14:00 / 2 PM)
+        let cutoffTime = '14:00';
+        try {
+          const regionCutoffResult = await pool.query(
+            `SELECT cutoff_time FROM regions WHERE id = $1`,
+            [suburbRecord.region_id]
+          );
+          if (regionCutoffResult.rows.length > 0 && regionCutoffResult.rows[0].cutoff_time) {
+            cutoffTime = regionCutoffResult.rows[0].cutoff_time;
+          }
+        } catch (e) {
+          console.warn('Could not fetch cutoff time from region:', e.message);
+        }
+        
         // Generate 6 upcoming delivery dates for this schedule
         for (let i = 0; i < 6; i++) {
           const deliveryDate = calculateNextDeliveryDate(
             new Date(today.getTime() + (i * 7 * 24 * 60 * 60 * 1000)), // Add i weeks
             cutoffDayName,
             packDayName,
-            deliveryDayName
+            deliveryDayName,
+            cutoffTime  // Pass cutoff time for proper cutoff checking
           );
 
           // Skip if date is blackout
@@ -478,15 +493,15 @@ router.get('/delivery-options', async (req, res) => {
 });
 
 /**
- * Calculate next delivery date based on cutoff_day, pack_day, delivery_day
+ * Calculate next delivery date based on cutoff_day, pack_day, delivery_day, and cutoff_time
  * 
- * Example: If today is Tuesday, cutoff is Friday, pack is Saturday, deliver is Monday
- * - This Friday (cutoff passes) → pack Sat → deliver Mon
+ * Example: If today is Thursday 10 AM, cutoff is Thursday 11 PM:
+ * - Cutoff hasn't passed yet (10 AM < 11 PM) → this week's delivery still available
  * 
- * If today is Friday after 2 PM:
- * - Cutoff has passed, so next option is following Friday (cutoff) → pack Sat → deliver Mon
+ * If today is Friday 10 AM, cutoff is Thursday 11 PM:
+ * - Cutoff already passed (yesterday at 11 PM) → next week's delivery
  */
-function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay) {
+function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutoffTime = '14:00') {
   const dayMap = {
     0: 'Sunday',
     1: 'Monday',
@@ -509,20 +524,36 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay) {
 
   const cutoffDayNum = reverseDayMap[cutoffDay] || 0;
   const deliveryDayNum = reverseDayMap[deliveryDay] || 0;
-
-  let daysToAdd = 0;
   const todayNum = today.getDay();
 
-  // If cutoff day hasn't happened this week, count days until it
-  // Otherwise, count until next week's cutoff
-  if (todayNum <= cutoffDayNum) {
-    // Cutoff is still coming this week
+  // Parse cutoff time (e.g., "14:00" or "23:00")
+  const [cutoffHour, cutoffMin] = cutoffTime.split(':').map(Number);
+  const cutoffTimeInMinutes = cutoffHour * 60 + (cutoffMin || 0);
+  const nowTimeInMinutes = today.getHours() * 60 + today.getMinutes();
+
+  let daysToAdd = 0;
+
+  // Check if cutoff day is today
+  if (todayNum === cutoffDayNum) {
+    // Cutoff is TODAY - check if time has passed
+    if (nowTimeInMinutes >= cutoffTimeInMinutes) {
+      // Cutoff already passed today, must wait until next week
+      daysToAdd = 7 - todayNum + deliveryDayNum;
+    } else {
+      // Cutoff hasn't passed yet, this week's delivery is available
+      daysToAdd = deliveryDayNum - todayNum;
+      if (daysToAdd <= 0) {
+        daysToAdd += 7; // Next week's delivery
+      }
+    }
+  } else if (todayNum < cutoffDayNum) {
+    // Cutoff day is still coming this week
     daysToAdd = deliveryDayNum - todayNum;
     if (daysToAdd <= 0) {
       daysToAdd += 7; // Next week's delivery
     }
   } else {
-    // Cutoff already passed, go to next week
+    // Cutoff day already passed, go to next week
     daysToAdd = 7 - todayNum + deliveryDayNum;
   }
 
