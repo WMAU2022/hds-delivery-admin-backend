@@ -69,12 +69,15 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
     }
 
     const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
-    const shopifyStore = process.env.SHOPIFY_STORE;
+    let shopifyStore = process.env.SHOPIFY_STORE;
 
     if (!shopifyToken || !shopifyStore) {
       console.error('Missing Shopify credentials');
       return false;
     }
+
+    // Remove trailing slash from SHOPIFY_STORE to prevent double slashes in URL
+    shopifyStore = shopifyStore.replace(/\/$/, '');
 
     // Get order details first
     const getOrderUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
@@ -314,12 +317,15 @@ async function enrichOrderWithHDSData(order) {
 async function updateOrderNoteAttributes(orderId, hdsData) {
   try {
     const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
-    const shopifyStore = process.env.SHOPIFY_STORE;
+    let shopifyStore = process.env.SHOPIFY_STORE;
 
     if (!shopifyToken || !shopifyStore) {
       console.error('Missing Shopify credentials');
       return false;
     }
+
+    // Remove trailing slash from SHOPIFY_STORE to prevent double slashes in URL
+    shopifyStore = shopifyStore.replace(/\/$/, '');
 
     const getOrderUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
     const orderResponse = await axios.get(getOrderUrl, {
