@@ -399,14 +399,19 @@ router.get('/delivery-options', async (req, res) => {
         console.log(`⏰ Region cutoff time: ${cutoffTime}`);
         
         // Generate 6 upcoming delivery dates for this schedule
+        // Start by calculating the first available date, then add 7 days for each iteration
+        let currentDate = new Date(today);
         for (let i = 0; i < 6; i++) {
           const deliveryDate = calculateNextDeliveryDate(
-            new Date(today.getTime() + (i * 7 * 24 * 60 * 60 * 1000)), // Add i weeks
+            currentDate,
             cutoffDayName,
             packDayName,
             deliveryDayName,
             cutoffTime  // Pass cutoff time for proper cutoff checking
           );
+          // Move to the next week for the next iteration
+          currentDate = new Date(deliveryDate);
+          currentDate.setDate(currentDate.getDate() + 7);
 
           // Skip if date is blackout
           const isBlackout = await checkBlackoutDate(suburb.region_id, deliveryDate);
@@ -502,23 +507,13 @@ router.get('/delivery-options', async (req, res) => {
 /**
  * Calculate next delivery date based on cutoff_day, pack_day, delivery_day, and cutoff_time
  * 
- * Example: If today is Thursday 10 AM, cutoff is Thursday 11 PM:
- * - Cutoff hasn't passed yet (10 AM < 11 PM) → this week's delivery still available
- * 
- * If today is Friday 10 AM, cutoff is Thursday 11 PM:
- * - Cutoff already passed (yesterday at 11 PM) → next week's delivery
+ * Logic:
+ * 1. If cutoff day hasn't happened yet this week → use this week's dates
+ * 2. If cutoff day is today but time hasn't passed → use this week's dates
+ * 3. If cutoff day is today AND time has passed → skip to next week
+ * 4. If cutoff day already passed → skip to next week
  */
 function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutoffTime = '14:00') {
-  const dayMap = {
-    0: 'Sunday',
-    1: 'Monday',
-    2: 'Tuesday',
-    3: 'Wednesday',
-    4: 'Thursday',
-    5: 'Friday',
-    6: 'Saturday',
-  };
-
   const reverseDayMap = {
     Sunday: 0,
     Monday: 1,
@@ -538,30 +533,30 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
   const cutoffTimeInMinutes = cutoffHour * 60 + (cutoffMin || 0);
   const nowTimeInMinutes = today.getHours() * 60 + today.getMinutes();
 
-  let daysToAdd = 0;
+  let useThisWeek = false;
 
-  // Check if cutoff day is today
-  if (todayNum === cutoffDayNum) {
-    // Cutoff is TODAY - check if time has passed
-    if (nowTimeInMinutes >= cutoffTimeInMinutes) {
-      // Cutoff already passed today, must wait until next week
-      daysToAdd = 7 - todayNum + deliveryDayNum;
-    } else {
-      // Cutoff hasn't passed yet, this week's delivery is available
-      daysToAdd = deliveryDayNum - todayNum;
-      if (daysToAdd <= 0) {
-        daysToAdd += 7; // Next week's delivery
-      }
-    }
-  } else if (todayNum < cutoffDayNum) {
-    // Cutoff day is still coming this week
+  if (todayNum < cutoffDayNum) {
+    // Cutoff day hasn't happened yet this week → this week's delivery available
+    useThisWeek = true;
+  } else if (todayNum === cutoffDayNum && nowTimeInMinutes < cutoffTimeInMinutes) {
+    // Cutoff is TODAY but hasn't passed yet → this week's delivery still available
+    useThisWeek = true;
+  }
+  // else: cutoff day has passed or is today but time passed → skip to next week
+
+  let daysToAdd;
+  if (useThisWeek) {
+    // Use this week's delivery date
     daysToAdd = deliveryDayNum - todayNum;
     if (daysToAdd <= 0) {
-      daysToAdd += 7; // Next week's delivery
+      daysToAdd += 7; // Delivery day hasn't occurred yet this week, add 7
     }
   } else {
-    // Cutoff day already passed, go to next week
-    daysToAdd = 7 - todayNum + deliveryDayNum;
+    // Cutoff has passed, need NEXT week's delivery
+    // Formula: days until next occurrence of deliveryDay + 7 extra days to skip a week
+    const baseDaysToDelivery = (deliveryDayNum - todayNum + 7) % 7;
+    daysToAdd = baseDaysToDelivery === 0 ? 7 : baseDaysToDelivery;
+    daysToAdd += 7;  // Add 7 more days to skip the current week
   }
 
   const nextDate = new Date(today);
