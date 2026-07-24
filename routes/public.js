@@ -380,19 +380,23 @@ router.get('/delivery-options', async (req, res) => {
         const deliveryDayName = typeof schedule.delivery_day === 'number' ? dayMap[schedule.delivery_day] : schedule.delivery_day;
         console.log(`📅 Processing schedule ${schedule.id}: cutoff=${cutoffDayName}, pack=${packDayName}, delivery=${deliveryDayName}`);
         
-        // Get cutoff time from region (default to 14:00 / 2 PM)
-        let cutoffTime = '14:00';
+        // Get cutoff time from region (default to 23:00 / 11 PM for orders, shown as 2 PM display fallback)
+        let cutoffTime = '23:00';  // Default cutoff time: 11 PM
         try {
           const regionCutoffResult = await pool.query(
             `SELECT cutoff_time FROM regions WHERE id = $1`,
             [suburbRecord.region_id]
           );
-          if (regionCutoffResult.rows.length > 0 && regionCutoffResult.rows[0].cutoff_time) {
-            cutoffTime = regionCutoffResult.rows[0].cutoff_time;
+          if (regionCutoffResult.rows.length > 0) {
+            const dbCutoffTime = regionCutoffResult.rows[0].cutoff_time;
+            if (dbCutoffTime && dbCutoffTime.trim() !== '') {
+              cutoffTime = dbCutoffTime;
+            }
           }
         } catch (e) {
           console.warn('Could not fetch cutoff time from region:', e.message);
         }
+        console.log(`⏰ Region cutoff time: ${cutoffTime}`);
         
         // Generate 6 upcoming delivery dates for this schedule
         for (let i = 0; i < 6; i++) {
@@ -421,11 +425,14 @@ router.get('/delivery-options', async (req, res) => {
           productionDateObj.setDate(productionDateObj.getDate() - 1);
           const productionDateStr = productionDateObj.toISOString().split('T')[0];
 
+          // Format cutoff time for display (e.g., "23:00" → "11 PM", "14:00" → "2 PM")
+          const displayCutoffTime = formatCutoffTime(cutoffTime);
+
           options.push({
             schedule_id: schedule.id,
             delivery_day: deliveryDayName,
             delivery_window: schedule.hours || 'Standard Hours',
-            cutoff_info: `${cutoffDayName} 2 PM`,
+            cutoff_info: `${cutoffDayName} ${displayCutoffTime}`,
             delivery_date: deliveryDate.toISOString().split('T')[0],
             pack_date: packDateStr,
             pack_day: packDayName,
@@ -580,6 +587,27 @@ async function checkBlackoutDate(regionId, date) {
     console.error('Error checking blackout date:', error);
     return false;
   }
+}
+
+/**
+ * Format cutoff time for display
+ * "23:00" → "11 PM"
+ * "14:00" → "2 PM"
+ */
+function formatCutoffTime(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '2 PM'; // Default fallback
+  const [hourStr, minStr] = timeStr.split(':');
+  const hour = parseInt(hourStr, 10);
+  const min = parseInt(minStr || '0', 10);
+  
+  if (isNaN(hour)) return '2 PM'; // Fallback
+  
+  const isPM = hour >= 12;
+  const displayHour = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+  const displayMin = min > 0 ? `:${String(min).padStart(2, '0')}` : '';
+  const period = isPM ? 'PM' : 'AM';
+  
+  return `${displayHour}${displayMin} ${period}`;
 }
 
 /**
