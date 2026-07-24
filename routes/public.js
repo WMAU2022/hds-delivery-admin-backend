@@ -568,18 +568,32 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
 
 /**
  * Check if a date is blackout for the region (checks date ranges)
+ * Gracefully handles missing columns in older database schemas
  */
 async function checkBlackoutDate(regionId, date) {
   try {
     const dateStr = date.toISOString().split('T')[0];
-    const result = await pool.query(
-      `SELECT COUNT(*) as count FROM blackout_dates 
-       WHERE region_id = $1 AND start_date <= $2 AND end_date >= $2 AND enabled = true`,
-      [regionId, dateStr]
-    );
-    return result.rows[0].count > 0;
+    
+    // First, check if the table even exists and has the right columns
+    // Try the new schema (start_date, end_date)
+    try {
+      const result = await pool.query(
+        `SELECT COUNT(*) as count FROM blackout_dates 
+         WHERE region_id = $1 AND start_date <= $2 AND end_date >= $2 AND enabled = true`,
+        [regionId, dateStr]
+      );
+      return result.rows[0].count > 0;
+    } catch (schemaError) {
+      // If the columns don't exist, the table probably uses a different schema
+      // For now, just return false (no blackout)
+      if (schemaError.message && schemaError.message.includes('does not exist')) {
+        console.warn('⚠️ Blackout dates table schema outdated, skipping blackout checks');
+        return false;
+      }
+      throw schemaError;
+    }
   } catch (error) {
-    console.error('Error checking blackout date:', error);
+    console.error('Error checking blackout date:', error.message);
     return false;
   }
 }
