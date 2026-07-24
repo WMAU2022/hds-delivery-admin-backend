@@ -80,7 +80,7 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
     shopifyStore = shopifyStore.replace(/\/$/, '');
 
     // Get order details first
-    const getOrderUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
+    const getOrderUrl = `https://${shopifyStore}/admin/api/2026-04/orders/${orderId}.json`;
     
     const orderResponse = await axios.get(getOrderUrl, {
       headers: {
@@ -112,7 +112,7 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
     }));
 
     // Call Shopify's line item update endpoint
-    const updateUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
+    const updateUrl = `https://${shopifyStore}/admin/api/2026-04/orders/${orderId}.json`;
     
     const updateResponse = await axios.put(
       updateUrl,
@@ -327,7 +327,7 @@ async function updateOrderNoteAttributes(orderId, hdsData) {
     // Remove trailing slash from SHOPIFY_STORE to prevent double slashes in URL
     shopifyStore = shopifyStore.replace(/\/$/, '');
 
-    const getOrderUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
+    const getOrderUrl = `https://${shopifyStore}/admin/api/2026-04/orders/${orderId}.json`;
     const orderResponse = await axios.get(getOrderUrl, {
       headers: {
         'X-Shopify-Access-Token': shopifyToken,
@@ -351,7 +351,7 @@ async function updateOrderNoteAttributes(orderId, hdsData) {
     }
 
     // Update order with new note_attributes
-    const updateUrl = `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`;
+    const updateUrl = `https://${shopifyStore}/admin/api/2026-04/orders/${orderId}.json`;
     await axios.put(
       updateUrl,
       {
