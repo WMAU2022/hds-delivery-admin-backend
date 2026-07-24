@@ -534,14 +534,14 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay) {
 }
 
 /**
- * Check if a date is blackout for the region
+ * Check if a date is blackout for the region (checks date ranges)
  */
 async function checkBlackoutDate(regionId, date) {
   try {
     const dateStr = date.toISOString().split('T')[0];
     const result = await pool.query(
       `SELECT COUNT(*) as count FROM blackout_dates 
-       WHERE region_id = $1 AND blackout_date = $2`,
+       WHERE region_id = $1 AND start_date <= $2 AND end_date >= $2 AND enabled = true`,
       [regionId, dateStr]
     );
     return result.rows[0].count > 0;
