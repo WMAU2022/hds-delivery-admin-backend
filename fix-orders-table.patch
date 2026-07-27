@@ -1,0 +1,26 @@
+--- a/server.js
++++ b/server.js
+@@ -327,14 +327,19 @@ async function runMigrations() {
+     
+     // Create orders_to_enrich queue table
+     console.log('  Creating orders_to_enrich table...');
+     await client.query(`
+       CREATE TABLE IF NOT EXISTS orders_to_enrich (
+         id SERIAL PRIMARY KEY,
+         order_id BIGINT NOT NULL UNIQUE,
+         created_at TIMESTAMP DEFAULT NOW(),
+         processed_at TIMESTAMP,
+         status VARCHAR(50) DEFAULT 'pending',
+         retry_count INT DEFAULT 0,
+-        error_message TEXT,
+-        INDEX(status, created_at)
++        error_message TEXT
+       )
+     `);
++    await client.query(`
++      CREATE INDEX IF NOT EXISTS idx_orders_to_enrich_status_created 
++      ON orders_to_enrich(status, created_at)
++    `);
+     console.log('    ✅ orders_to_enrich table ready');
+ 
+     // Check if schedules exist

@@ -334,9 +334,12 @@ async function seedInitialData() {
         processed_at TIMESTAMP,
         status VARCHAR(50) DEFAULT 'pending',
         retry_count INT DEFAULT 0,
-        error_message TEXT,
-        INDEX(status, created_at)
+        error_message TEXT
       )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_to_enrich_status_created 
+      ON orders_to_enrich(status, created_at)
     `);
     console.log('    ✅ orders_to_enrich table ready');
 
