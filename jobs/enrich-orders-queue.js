@@ -7,6 +7,7 @@
  */
 
 const pool = require('../lib/db');
+const suburbsStore = require('../lib/suburbs-sync-store');
 
 const BATCH_SIZE = 10;
 const PROCESS_INTERVAL = 10000; // 10 seconds
@@ -161,26 +162,41 @@ async function enrichOrder(deliveryDate, deliveryLocationId, deliveryTime) {
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const deliveryDayName = dayMap[deliveryDayNum];
 
-    // Find suburb and region by postcode
-    const suburbResult = await pool.query(
-      `SELECT id, name, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1`,
-      [deliveryLocationId.toString()]
-    );
-
-    if (suburbResult.rows.length === 0) {
-      throw new Error(`Suburb not found for postcode: ${deliveryLocationId}`);
+    // Find suburb and region by postcode (use in-memory store first, then database)
+    const postcode = deliveryLocationId.toString();
+    let suburb = suburbsStore.findByPostcode(postcode);
+    
+    // Fall back to database if not in store
+    if (!suburb) {
+      const suburbResult = await pool.query(
+        `SELECT id, name, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1`,
+        [postcode]
+      );
+      
+      if (suburbResult.rows.length === 0) {
+        throw new Error(`Suburb not found for postcode: ${postcode}`);
+      }
+      suburb = suburbResult.rows[0];
     }
-
-    const suburb = suburbResult.rows[0];
+    
     const regionId = suburb.region_id;
 
-    // Get region info
-    const regionResult = await pool.query(
-      `SELECT id, name FROM regions WHERE id = $1`,
-      [regionId]
-    );
-
-    const region = regionResult.rows[0] || { id: regionId, name: 'Unknown Region' };
+    // Get region info from database (or fallback to default)
+    let region = null;
+    try {
+      const regionResult = await pool.query(
+        `SELECT id, name FROM regions WHERE id = $1`,
+        [regionId]
+      );
+      region = regionResult.rows[0];
+    } catch (e) {
+      // If query fails, use suburb region_id as fallback
+      console.warn(`⚠️  Warning getting region ${regionId}:`, e.message);
+    }
+    
+    if (!region) {
+      region = { id: regionId, name: suburb.hds_zone || 'Unknown Region' };
+    }
 
     // Find delivery schedule
     const scheduleResult = await pool.query(
