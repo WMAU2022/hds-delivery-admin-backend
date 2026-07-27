@@ -327,14 +327,27 @@ async function seedInitialData() {
     const schedulesResult = await client.query('SELECT COUNT(*) FROM delivery_schedules');
     if (parseInt(schedulesResult.rows[0].count) === 0) {
       console.log('  Inserting schedules...');
+      // Comprehensive schedules for all days of week (Mon-Fri)
+      // Each day has AM and Business Hours options
+      // Pack day is 2 days before delivery (e.g., Thursday delivery = Tuesday pack = Monday production)
       await client.query(`
         INSERT INTO delivery_schedules (region_id, cutoff_day, pack_day, delivery_day, hours, enabled, is_default) VALUES
-        (1, 4, 6, 0, 'AM', true, true),
-        (1, 4, 6, 0, 'Business Hours', true, false),
+        -- Region 1 (default): Monday-Friday deliveries
+        (1, 3, 1, 1, 'AM', true, true),                -- Mon deliver, Sat pack, Fri production
+        (1, 3, 1, 1, 'Business Hours', true, false),
+        (1, 3, 2, 2, 'AM', true, true),                -- Tue deliver, Sun pack, Sat production
+        (1, 3, 2, 2, 'Business Hours', true, false),
+        (1, 3, 3, 3, 'AM', true, true),                -- Wed deliver, Mon pack, Sun production
+        (1, 3, 3, 3, 'Business Hours', true, false),
+        (1, 3, 4, 4, 'AM', true, true),                -- Thu deliver, Tue pack, Mon production
+        (1, 3, 4, 4, 'Business Hours', true, false),
+        (1, 3, 5, 5, 'AM', true, true),                -- Fri deliver, Wed pack, Tue production
+        (1, 3, 5, 5, 'Business Hours', true, false),
+        -- Region 2 (secondary): Friday deliveries
         (2, 4, 5, 5, 'AM', true, true),
         (2, 4, 5, 5, 'Business Hours', true, false)
       `);
-      console.log('    ✅ Schedules inserted');
+      console.log('    ✅ Schedules inserted (Mon-Fri enabled)');
     }
     
     console.log('✅ Seed data complete');
