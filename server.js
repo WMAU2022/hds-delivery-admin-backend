@@ -347,6 +347,47 @@ async function seedInitialData() {
     `);
     console.log('    ✅ orders_to_enrich table ready');
 
+    // Add missing columns to existing tables (from previous deployments)
+    console.log('  Adding missing columns to existing tables...');
+    const deliveryColumns = [
+      ['delivery_date', 'VARCHAR(10)'],
+      ['delivery_location_id', 'VARCHAR(20)'],
+      ['delivery_time', 'VARCHAR(50)'],
+    ];
+    
+    for (const [colName, colType] of deliveryColumns) {
+      try {
+        await client.query(`ALTER TABLE orders_to_enrich ADD COLUMN \${colName} \${colType}`);
+        console.log(`    ✅ Added \${colName} to orders_to_enrich`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`    ℹ️  \${colName} already exists`);
+      }
+    }
+    
+    const enrichColumns = [
+      ['hds_delivery_date', 'VARCHAR(10)'],
+      ['hds_delivery_formatted', 'TEXT'],
+      ['hds_delivery_day', 'VARCHAR(20)'],
+      ['hds_delivery_window', 'VARCHAR(50)'],
+      ['hds_delivery_time', 'VARCHAR(50)'],
+      ['hds_schedule_id', 'VARCHAR(20)'],
+      ['hds_pack_date', 'VARCHAR(10)'],
+      ['hds_production_date', 'VARCHAR(10)'],
+      ['hds_region', 'VARCHAR(255)'],
+      ['hds_suburb', 'VARCHAR(255)'],
+      ['hds_postcode', 'VARCHAR(10)'],
+    ];
+    
+    for (const [colName, colType] of enrichColumns) {
+      try {
+        await client.query(`ALTER TABLE order_enrichments ADD COLUMN \${colName} \${colType}`);
+        console.log(`    ✅ Added \${colName} to order_enrichments`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`    ℹ️  \${colName} already exists`);
+      }
+    }
+
+
     // Create order_enrichments table (stores enriched HDS data for all orders)
     console.log('  Creating order_enrichments table...');
     await client.query(`
