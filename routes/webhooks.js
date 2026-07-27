@@ -406,13 +406,31 @@ router.post('/shopify/orders/create', async (req, res) => {
     if (hasDeliveryDate) {
       console.log('🔍 Detected delivery order - queueing for enrichment...');
       
+      // Extract delivery details from order
+      let deliveryDate = null;
+      let deliveryLocationId = null;
+      let deliveryTime = null;
+      
+      if (order.note_attributes && Array.isArray(order.note_attributes)) {
+        for (const attr of order.note_attributes) {
+          if (attr.name === 'Delivery-Date') deliveryDate = attr.value;
+          if (attr.name === 'Delivery-Location-Id') deliveryLocationId = attr.value;
+          if (attr.name === 'Delivery-Time') deliveryTime = attr.value;
+        }
+      }
+      
       // Queue the order for background enrichment (handles rate limits & volume)
       try {
         const database = require('../lib/db');
         await database.query(
-          `INSERT INTO orders_to_enrich (order_id, status) VALUES ($1, $2)
-           ON CONFLICT (order_id) DO UPDATE SET status = 'pending'`,
-          [orderId, 'pending']
+          `INSERT INTO orders_to_enrich (order_id, delivery_date, delivery_location_id, delivery_time, status) 
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (order_id) DO UPDATE SET 
+             delivery_date = $2,
+             delivery_location_id = $3,
+             delivery_time = $4,
+             status = 'pending'`,
+          [orderId, deliveryDate, deliveryLocationId, deliveryTime, 'pending']
         );
         console.log(`✅ Order #${orderId} queued for enrichment`);
       } catch (queueErr) {
@@ -423,7 +441,8 @@ router.post('/shopify/orders/create', async (req, res) => {
     }
 
     // Always respond with 200 immediately (queue handles enrichment asynchronously)
-    res.status(200).json({ success: true, orderId, message: 'Order queued for enrichment' });
+    // No waiting, no API calls, no 401 errors
+    res.status(200).json({ success: true, orderId, message: 'Order queued for background enrichment' });
   } catch (err) {
     console.error('Error processing webhook:', err);
     res.status(200).json({ success: false, error: err.message });

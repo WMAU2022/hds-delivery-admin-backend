@@ -1,17 +1,15 @@
 /**
  * Batch Enrichment Queue Processor
  * 
- * Processes orders needing HDS enrichment in batches
- * Respects Shopify API rate limits (~2 calls/sec)
- * Runs every 10 seconds, processes up to 10 orders per run
+ * Stores enriched HDS data in our database (order_enrichments table)
+ * No Shopify API calls needed - completely independent
+ * Scales to 10,000+ orders/day with no rate limiting issues
  */
 
 const pool = require('../lib/db');
-const axios = require('axios');
 
 const BATCH_SIZE = 10;
 const PROCESS_INTERVAL = 10000; // 10 seconds
-const SHOPIFY_RATE_LIMIT = 2; // calls per second
 
 let isProcessing = false;
 
@@ -45,87 +43,71 @@ async function enrichOrderFromQueue() {
     // Process each order
     for (const queueEntry of orders) {
       try {
-        // Get Shopify order details
-        const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
-        const shopifyStore = process.env.SHOPIFY_STORE?.replace(/\/$/, '');
-
-        if (!shopifyToken || !shopifyStore) {
-          throw new Error('Missing Shopify credentials');
-        }
-
-        const orderResponse = await axios.get(
-          `https://${shopifyStore}/admin/api/2026-07/orders/${queueEntry.order_id}.json`,
-          {
-            headers: {
-              'X-Shopify-Access-Token': shopifyToken,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        const order = orderResponse.data.order;
-
-        // Extract delivery date from note_attributes
-        let deliveryDate = null;
-        let deliveryLocationId = null;
-        let deliveryTime = null;
-
-        if (order.note_attributes && Array.isArray(order.note_attributes)) {
-          for (const attr of order.note_attributes) {
-            if (attr.name === 'Delivery-Date') deliveryDate = attr.value;
-            if (attr.name === 'Delivery-Location-Id') deliveryLocationId = attr.value;
-            if (attr.name === 'Delivery-Time') deliveryTime = attr.value;
-          }
-        }
+        const deliveryDate = queueEntry.delivery_date;
+        const deliveryLocationId = queueEntry.delivery_location_id;
+        const deliveryTime = queueEntry.delivery_time;
 
         if (!deliveryDate || !deliveryLocationId) {
-          // Not a delivery order, mark as processed
+          // Not a delivery order, mark as skipped
           await pool.query(
             `UPDATE orders_to_enrich SET status = 'skipped', processed_at = NOW() WHERE id = $1`,
             [queueEntry.id]
           );
-          console.log(`⏭️  Order #${queueEntry.order_id}: No delivery date (standard order)`);
+          console.log(`⏭️  Order #${queueEntry.order_id}: No delivery data (standard order)`);
           continue;
         }
 
-        // Enrich the order (same logic as before)
-        const enrichedData = await enrichOrder(order, deliveryDate, deliveryLocationId, deliveryTime);
+        // Enrich the order
+        const enrichedData = await enrichOrder(deliveryDate, deliveryLocationId, deliveryTime);
 
         if (!enrichedData) {
           throw new Error('Failed to calculate enriched data');
         }
 
-        // Update order with enriched line item properties
-        if (order.line_items && order.line_items.length > 0) {
-          const updatedLineItems = order.line_items.map(item => ({
-            id: item.id,
-            properties: {
-              'Delivery Date': enrichedData.hds_delivery_date,
-              'Pack Date': enrichedData.hds_pack_date,
-              'Production Date': enrichedData.hds_production_date,
-              'Delivery Time': enrichedData.hds_delivery_time,
-              'Location': enrichedData.hds_region,
-              'Delivery Day': enrichedData.hds_delivery_day,
-              'Schedule ID': enrichedData.hds_schedule_id,
-            },
-          }));
-
-          await axios.put(
-            `https://${shopifyStore}/admin/api/2026-07/orders/${queueEntry.order_id}.json`,
-            {
-              order: {
-                id: queueEntry.order_id,
-                line_items: updatedLineItems,
-              },
-            },
-            {
-              headers: {
-                'X-Shopify-Access-Token': shopifyToken,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-        }
+        // Store enriched data in order_enrichments table (our database, not Shopify)
+        await pool.query(
+          `INSERT INTO order_enrichments (
+            order_id,
+            hds_delivery_date,
+            hds_delivery_formatted,
+            hds_delivery_day,
+            hds_delivery_window,
+            hds_delivery_time,
+            hds_schedule_id,
+            hds_pack_date,
+            hds_production_date,
+            hds_region,
+            hds_suburb,
+            hds_postcode
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           ON CONFLICT (order_id) DO UPDATE SET
+            hds_delivery_date = $2,
+            hds_delivery_formatted = $3,
+            hds_delivery_day = $4,
+            hds_delivery_window = $5,
+            hds_delivery_time = $6,
+            hds_schedule_id = $7,
+            hds_pack_date = $8,
+            hds_production_date = $9,
+            hds_region = $10,
+            hds_suburb = $11,
+            hds_postcode = $12,
+            updated_at = NOW()`,
+          [
+            queueEntry.order_id,
+            enrichedData.hds_delivery_date,
+            enrichedData.hds_delivery_formatted,
+            enrichedData.hds_delivery_day,
+            enrichedData.hds_delivery_window,
+            enrichedData.hds_delivery_time,
+            enrichedData.hds_schedule_id,
+            enrichedData.hds_pack_date,
+            enrichedData.hds_production_date,
+            enrichedData.hds_region,
+            enrichedData.hds_suburb,
+            enrichedData.hds_postcode,
+          ]
+        );
 
         // Mark as processed
         await pool.query(
@@ -133,10 +115,7 @@ async function enrichOrderFromQueue() {
           [queueEntry.id]
         );
 
-        console.log(`✅ Enriched order #${queueEntry.order_id}`);
-
-        // Rate limit: wait between API calls
-        await new Promise(resolve => setTimeout(resolve, 1000 / SHOPIFY_RATE_LIMIT));
+        console.log(`✅ Enriched order #${queueEntry.order_id} → stored in order_enrichments`);
 
       } catch (err) {
         console.error(`❌ Error enriching order #${queueEntry.order_id}:`, err.message);
@@ -163,9 +142,9 @@ async function enrichOrderFromQueue() {
 
 /**
  * Enrich order with HDS delivery data
- * (Same logic as webhook enrichment)
+ * Uses only our database - NO Shopify API calls
  */
-async function enrichOrder(order, deliveryDate, deliveryLocationId, deliveryTime) {
+async function enrichOrder(deliveryDate, deliveryLocationId, deliveryTime) {
   try {
     // Parse delivery date
     const cleanDate = String(deliveryDate).trim();

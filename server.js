@@ -18,6 +18,7 @@ const syncRouter = require('./routes/sync');
 const blackoutRouter = require('./routes/blackout');
 const publicRouter = require('./routes/public');
 const webhooksRouter = require('./routes/webhooks');
+const enrichmentsRouter = require('./routes/enrichments');
 const debugRouter = require('./routes/debug');
 const envDebugRouter = require('./routes/env-debug');
 const connectionTestRouter = require('./routes/connection-test');
@@ -94,6 +95,9 @@ app.use('/api/blackout-dates', blackoutRouter);
 
 // Public API Routes (for checkout)
 app.use('/api/public', publicRouter);
+
+// Enrichment API Routes
+app.use('/api/enrichments', enrichmentsRouter);
 
 // Error handling
 app.use((err, req, res, next) => {
@@ -342,6 +346,33 @@ async function seedInitialData() {
       ON orders_to_enrich(status, created_at)
     `);
     console.log('    ✅ orders_to_enrich table ready');
+
+    // Create order_enrichments table (stores enriched HDS data for all orders)
+    console.log('  Creating order_enrichments table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS order_enrichments (
+        id SERIAL PRIMARY KEY,
+        order_id BIGINT NOT NULL UNIQUE,
+        hds_delivery_date VARCHAR(10),
+        hds_delivery_formatted TEXT,
+        hds_delivery_day VARCHAR(20),
+        hds_delivery_window VARCHAR(50),
+        hds_delivery_time VARCHAR(50),
+        hds_schedule_id VARCHAR(20),
+        hds_pack_date VARCHAR(10),
+        hds_production_date VARCHAR(10),
+        hds_region VARCHAR(255),
+        hds_suburb VARCHAR(255),
+        hds_postcode VARCHAR(10),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_order_enrichments_order_id 
+      ON order_enrichments(order_id)
+    `);
+    console.log('    ✅ order_enrichments table ready');
 
     // Check if schedules exist
     const schedulesResult = await client.query('SELECT COUNT(*) FROM delivery_schedules');
