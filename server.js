@@ -9,6 +9,7 @@ const queueProcessor = require('./jobs/enrich-orders-queue');
 const store = require('./lib/memory-store');
 const suburbsStore = require('./lib/suburbs-sync-store');
 const hdsSuburbsSync = require('./jobs/hds-sync-suburbs');
+const { addDeliveryColumns } = require('./migrations/add-delivery-columns');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
@@ -458,6 +459,7 @@ app.listen(PORT, async () => {
   // Run migrations (don't crash if they fail - tables might already exist)
   try {
     await runMigrations();
+  await addDeliveryColumns(pool);
   } catch (error) {
     console.error('⚠️  Migration warning:', error.message);
     console.log('(Tables might already exist - continuing anyway)');
