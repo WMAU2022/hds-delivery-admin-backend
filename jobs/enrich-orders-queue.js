@@ -119,7 +119,7 @@ async function enrichOrderFromQueue() {
         console.log(`✅ Enriched order #${queueEntry.order_id} → stored in order_enrichments`);
         
         // Sync to Shopify (non-blocking background task)
-        syncToShopifyAsync(queueEntry.order_id, enrichedData).catch(() => {});
+        const syncResult = syncToShopifyAsync(queueEntry.order_id, enrichedData); // Non-blocking sync
 
       } catch (err) {
         console.error(`❌ Error enriching order #${queueEntry.order_id}:`, err.message);
@@ -262,11 +262,13 @@ async function syncToShopifyAsync(orderId, enrichedData) {
     const shopifyStore = (process.env.SHOPIFY_STORE || '').replace(/\/$/, '');
     
     if (!shopifyToken || !shopifyStore) {
-      // Silently skip if no creds configured
+      console.log('⚠️ Shopify creds missing, skipping sync');
       return;
     }
 
-    // Build note_attributes array
+    const axios = require('axios');
+    
+    // Build note attributes as array of {name, value} objects
     const noteAttributes = [
       { name: 'hds_delivery_date', value: enrichedData.hds_delivery_date },
       { name: 'hds_delivery_formatted', value: enrichedData.hds_delivery_formatted },
@@ -281,23 +283,10 @@ async function syncToShopifyAsync(orderId, enrichedData) {
       { name: 'hds_postcode', value: enrichedData.hds_postcode },
     ];
 
-    // GraphQL mutation - use orderUpdate instead of REST PUT
-    const axios = require('axios');
-    const mutationStr = `
-      mutation {
-        orderUpdate(input: {
-          id: "gid://shopify/Order/${orderId}"
-          noteAttributes: ${JSON.stringify(noteAttributes).replace(/"/g, '\"')}
-        }) {
-          order { id name }
-          userErrors { field message }
-        }
-      }
-    `;
-
-    await axios.post(
-      `https://${shopifyStore}/admin/api/2024-01/graphql.json`,
-      { query: mutationStr },
+    // Use REST API PUT /orders/{id} with note_attributes
+    const response = await axios.put(
+      `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`,
+      { order: { note_attributes: noteAttributes } },
       {
         headers: {
           'X-Shopify-Access-Token': shopifyToken,
@@ -307,13 +296,16 @@ async function syncToShopifyAsync(orderId, enrichedData) {
       }
     );
 
-    console.log(`✅ Synced enriched data to Shopify #${orderId}`);
+    console.log(`✅ Synced to Shopify #${orderId}`);
   } catch (err) {
-    // Non-blocking: just warn don't fail enrichment
     if (err.response?.status === 401) {
-      console.warn('⚠️ Shopify auth failed (401) - check SHOPIFY_ADMIN_TOKEN');
+      console.warn('⚠️ Shopify 401: Check SHOPIFY_ADMIN_TOKEN');
+    } else if (err.response?.status === 404) {
+      console.warn(`⚠️ Shopify 404: Order #${orderId} not found`);
+    } else if (err.code === 'ECONNREFUSED') {
+      console.warn('⚠️ Cannot reach Shopify API');
     } else {
-      // Silently skip other errors (network, timeouts, etc)
+      console.warn(`⚠️ Sync failed: ${err.message}`);
     }
   }
 }
