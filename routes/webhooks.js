@@ -404,18 +404,26 @@ router.post('/shopify/orders/create', async (req, res) => {
     );
 
     if (hasDeliveryDate) {
-      console.log('🔍 Detected delivery order - enriching with HDS data...');
-      const hdsData = await enrichOrderWithHDSData(order);
+      console.log('🔍 Detected delivery order - queueing for enrichment...');
       
-      if (hdsData) {
-        await updateOrderNoteAttributes(orderId, hdsData);
+      // Queue the order for background enrichment (handles rate limits & volume)
+      try {
+        const database = require('../lib/db');
+        await database.query(
+          `INSERT INTO orders_to_enrich (order_id, status) VALUES ($1, $2)
+           ON CONFLICT (order_id) DO UPDATE SET status = 'pending'`,
+          [orderId, 'pending']
+        );
+        console.log(`✅ Order #${orderId} queued for enrichment`);
+      } catch (queueErr) {
+        console.error(`⚠️ Failed to queue order: ${queueErr.message}`);
       }
     } else {
       console.log('ℹ️ No delivery date in order (standard checkout)');
     }
 
-    // Always respond with 200 to acknowledge webhook receipt
-    res.status(200).json({ success: true, orderId });
+    // Always respond with 200 immediately (queue handles enrichment asynchronously)
+    res.status(200).json({ success: true, orderId, message: 'Order queued for enrichment' });
   } catch (err) {
     console.error('Error processing webhook:', err);
     res.status(200).json({ success: false, error: err.message });

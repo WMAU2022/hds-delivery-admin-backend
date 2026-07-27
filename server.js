@@ -4,6 +4,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const pool = require('./lib/db');
 const hdsSync = require('./jobs/hds-sync');
+const queueProcessor = require('./jobs/enrich-orders-queue');
 
 const store = require('./lib/memory-store');
 const suburbsStore = require('./lib/suburbs-sync-store');
@@ -323,6 +324,22 @@ async function seedInitialData() {
       console.log(`  ✅ ${regionCount} regions already exist (skipping seed)`);
     }
     
+    // Create orders_to_enrich queue table
+    console.log('  Creating orders_to_enrich table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS orders_to_enrich (
+        id SERIAL PRIMARY KEY,
+        order_id BIGINT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        processed_at TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'pending',
+        retry_count INT DEFAULT 0,
+        error_message TEXT,
+        INDEX(status, created_at)
+      )
+    `);
+    console.log('    ✅ orders_to_enrich table ready');
+
     // Check if schedules exist
     const schedulesResult = await client.query('SELECT COUNT(*) FROM delivery_schedules');
     if (parseInt(schedulesResult.rows[0].count) === 0) {
@@ -390,9 +407,23 @@ app.listen(PORT, async () => {
   hdsSync.initSchedule();
   console.log('⏰ HDS sync scheduled (daily at 2 AM)');
   
+  // Initialize order enrichment queue processor
+  queueProcessor.initQueueProcessor();
+  console.log('⏰ Order enrichment queue processor started (every 10 seconds)');
+  
   // Initialize HDS suburbs sync job (runs daily at 3 AM)
   hdsSuburbsSync.initSchedule();
-  console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)');
+  console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)'); 
+  
+  // Initialize order enrichment queue processor (background job)
+  try {
+    queueProcessor.initQueueProcessor();
+  } catch (err) {
+    console.warn('⚠️ Queue processor init warning:', err.message);
+  }
+  
+  // Initialize order enrichment queue processor (also runs on startup)
+  console.log('🚀 Starting enrichment queue processor...');
   
   // If suburbs store is empty, load seed data
   let suburbStats = suburbsStore.getStats();
