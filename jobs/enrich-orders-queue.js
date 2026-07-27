@@ -117,6 +117,9 @@ async function enrichOrderFromQueue() {
         );
 
         console.log(`✅ Enriched order #${queueEntry.order_id} → stored in order_enrichments`);
+        
+        // Sync to Shopify (non-blocking background task)
+        syncToShopifyAsync(queueEntry.order_id, enrichedData).catch(() => {});
 
       } catch (err) {
         console.error(`❌ Error enriching order #${queueEntry.order_id}:`, err.message);
@@ -248,6 +251,73 @@ async function enrichOrder(deliveryDate, deliveryLocationId, deliveryTime) {
     return null;
   }
 }
+
+/**
+ * Sync enriched data to Shopify order note_attributes (non-blocking)
+ * GraphQL API to avoid immutability issues with PUT requests
+ */
+async function syncToShopifyAsync(orderId, enrichedData) {
+  try {
+    const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
+    const shopifyStore = (process.env.SHOPIFY_STORE || '').replace(/\/$/, '');
+    
+    if (!shopifyToken || !shopifyStore) {
+      // Silently skip if no creds configured
+      return;
+    }
+
+    // Build note_attributes array
+    const noteAttributes = [
+      { name: 'hds_delivery_date', value: enrichedData.hds_delivery_date },
+      { name: 'hds_delivery_formatted', value: enrichedData.hds_delivery_formatted },
+      { name: 'hds_delivery_day', value: enrichedData.hds_delivery_day },
+      { name: 'hds_delivery_window', value: enrichedData.hds_delivery_window },
+      { name: 'hds_delivery_time', value: enrichedData.hds_delivery_time },
+      { name: 'hds_schedule_id', value: String(enrichedData.hds_schedule_id) },
+      { name: 'hds_pack_date', value: enrichedData.hds_pack_date },
+      { name: 'hds_production_date', value: enrichedData.hds_production_date },
+      { name: 'hds_region', value: enrichedData.hds_region },
+      { name: 'hds_suburb', value: enrichedData.hds_suburb },
+      { name: 'hds_postcode', value: enrichedData.hds_postcode },
+    ];
+
+    // GraphQL mutation - use orderUpdate instead of REST PUT
+    const axios = require('axios');
+    const mutationStr = `
+      mutation {
+        orderUpdate(input: {
+          id: "gid://shopify/Order/${orderId}"
+          noteAttributes: ${JSON.stringify(noteAttributes).replace(/"/g, '\"')}
+        }) {
+          order { id name }
+          userErrors { field message }
+        }
+      }
+    `;
+
+    await axios.post(
+      `https://${shopifyStore}/admin/api/2024-01/graphql.json`,
+      { query: mutationStr },
+      {
+        headers: {
+          'X-Shopify-Access-Token': shopifyToken,
+          'Content-Type': 'application/json',
+        },
+        timeout: 5000,
+      }
+    );
+
+    console.log(`✅ Synced enriched data to Shopify #${orderId}`);
+  } catch (err) {
+    // Non-blocking: just warn don't fail enrichment
+    if (err.response?.status === 401) {
+      console.warn('⚠️ Shopify auth failed (401) - check SHOPIFY_ADMIN_TOKEN');
+    } else {
+      // Silently skip other errors (network, timeouts, etc)
+    }
+  }
+}
+
 
 // Initialize queue processor
 function initQueueProcessor() {
