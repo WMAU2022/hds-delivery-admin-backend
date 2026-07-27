@@ -10,6 +10,7 @@ const store = require('./lib/memory-store');
 const suburbsStore = require('./lib/suburbs-sync-store');
 const hdsSuburbsSync = require('./jobs/hds-sync-suburbs');
 const { addDeliveryColumns } = require('./migrations/add-delivery-columns');
+const { addCasulaSuburb } = require('./migrations/add-casula-suburb');
 const regionsRouter = require('./routes/regions');
 const suburbsRouter = require('./routes/suburbs');
 const schedulesRouter = require('./routes/schedules');
@@ -460,6 +461,7 @@ app.listen(PORT, async () => {
   try {
     await runMigrations();
   await addDeliveryColumns(pool);
+  await addCasulaSuburb(pool);
   } catch (error) {
     console.error('⚠️  Migration warning:', error.message);
     console.log('(Tables might already exist - continuing anyway)');
