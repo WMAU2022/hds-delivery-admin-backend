@@ -358,7 +358,9 @@ router.get('/delivery-options', async (req, res) => {
     }
 
     // 4. Calculate available delivery dates + pack dates
-    const today = new Date();
+    // CRITICAL: Use Sydney timezone (Australia/Sydney), not server timezone
+    const sydneyNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const today = sydneyNow;
     const options = [];
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const reverseDayMap = {
@@ -506,6 +508,7 @@ router.get('/delivery-options', async (req, res) => {
 
 /**
  * Calculate next delivery date based on cutoff_day, pack_day, delivery_day, and cutoff_time
+ * IMPORTANT: `today` parameter MUST be in Sydney timezone (Australia/Sydney)
  * 
  * Logic:
  * 1. If cutoff day hasn't happened yet this week → use this week's dates
@@ -514,6 +517,11 @@ router.get('/delivery-options', async (req, res) => {
  * 4. If cutoff day already passed → skip to next week
  */
 function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutoffTime = '14:00') {
+  // Ensure today is in Sydney timezone for accurate cutoff checks
+  if (!today._sydneyVerified) {
+    console.warn('⚠️ calculateNextDeliveryDate called with non-verified timezone. Converting to Sydney time.');
+    today = new Date(today.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  }
   const reverseDayMap = {
     Sunday: 0,
     Monday: 1,
