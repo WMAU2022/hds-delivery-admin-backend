@@ -531,6 +531,7 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
     Friday: 5,
     Saturday: 6,
   };
+  const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   const cutoffDayNum = reverseDayMap[cutoffDay] || 0;
   const deliveryDayNum = reverseDayMap[deliveryDay] || 0;
@@ -543,21 +544,27 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
 
   let useThisWeek = false;
 
-  if (todayNum < cutoffDayNum) {
-    // Cutoff day hasn't happened yet this week → this week's delivery available
+  // CRITICAL FIX: Use modulo arithmetic to correctly handle Sunday wraparound
+  // e.g., Saturday (6) → Sunday (0) = 1 day away, NOT in the past
+  const daysUntilCutoff = (cutoffDayNum - todayNum + 7) % 7;
+  
+  if (daysUntilCutoff > 0) {
+    // Cutoff day is coming up later this week → this week's delivery available
     useThisWeek = true;
-  } else if (todayNum === cutoffDayNum && nowTimeInMinutes < cutoffTimeInMinutes) {
-    // Cutoff is TODAY but hasn't passed yet → this week's delivery still available
+  } else if (daysUntilCutoff === 0 && nowTimeInMinutes < cutoffTimeInMinutes) {
+    // Cutoff is TODAY but time hasn't passed yet → this week's delivery still available
     useThisWeek = true;
   }
   // else: cutoff day has passed or is today but time passed → skip to next week
+  
+  console.log(`⏰ Cutoff: today=${dayMap[todayNum]} ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}, cutoff=${dayMap[cutoffDayNum]} ${cutoffTime}, daysUntilCutoff=${daysUntilCutoff}, useThisWeek=${useThisWeek}`);
 
   let daysToAdd;
   if (useThisWeek) {
-    // Use this week's delivery date
-    daysToAdd = deliveryDayNum - todayNum;
-    if (daysToAdd <= 0) {
-      daysToAdd += 7; // Delivery day hasn't occurred yet this week, add 7
+    // Use this week's delivery date (delivery day is still upcoming this week)
+    daysToAdd = (deliveryDayNum - todayNum + 7) % 7;
+    if (daysToAdd === 0) {
+      daysToAdd = 7; // Delivery day is today but we want next week's date
     }
   } else {
     // Cutoff has passed, need NEXT week's delivery
