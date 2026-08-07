@@ -544,27 +544,37 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
 
   let useThisWeek = false;
 
-  // CRITICAL FIX: Use modulo arithmetic to correctly handle Sunday wraparound
-  // e.g., Saturday (6) → Sunday (0) = 1 day away, NOT in the past
-  const daysUntilCutoff = (cutoffDayNum - todayNum + 7) % 7;
+  // CORRECT LOGIC: Check if cutoff day is coming UP (later in the week, or still today)
+  // Special case: Sunday (0) is always "later" in the week compared to other days
+  // Examples:
+  //   Today=Mon(1), Cutoff=Fri(5) → Fri > Mon → cutoff is coming (useThisWeek=true)
+  //   Today=Fri(5), Cutoff=Mon(1) → Mon < Fri AND Mon != 0 → cutoff passed (useThisWeek=false)
+  //   Today=Sat(6), Cutoff=Sun(0) → Sun==0 (special case) → cutoff coming (useThisWeek=true)
+  //   Today=Mon(1), Cutoff=Sun(0) → Sun==0 AND Mon != 0 → cutoff passed (useThisWeek=false)
   
-  if (daysUntilCutoff > 0) {
-    // Cutoff day is coming up later this week → this week's delivery available
-    useThisWeek = true;
-  } else if (daysUntilCutoff === 0 && nowTimeInMinutes < cutoffTimeInMinutes) {
-    // Cutoff is TODAY but time hasn't passed yet → this week's delivery still available
-    useThisWeek = true;
+  let cutoffIsComingThisWeek = false;
+  if (cutoffDayNum > todayNum) {
+    // Cutoff day number is higher → it's coming later this week
+    cutoffIsComingThisWeek = true;
+  } else if (cutoffDayNum === 0 && todayNum > 0) {
+    // Special case: Cutoff is Sunday (0) and today is not Sunday → Sunday is coming soon
+    cutoffIsComingThisWeek = true;
+  } else if (cutoffDayNum === todayNum) {
+    // Cutoff is today → check if time has passed
+    cutoffIsComingThisWeek = (nowTimeInMinutes < cutoffTimeInMinutes);
   }
-  // else: cutoff day has passed or is today but time passed → skip to next week
+  // else: cutoff day is earlier in the week (Mon-Sat) and not today → already passed
   
-  console.log(`⏰ Cutoff: today=${dayMap[todayNum]} ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}, cutoff=${dayMap[cutoffDayNum]} ${cutoffTime}, daysUntilCutoff=${daysUntilCutoff}, useThisWeek=${useThisWeek}`);
+  useThisWeek = cutoffIsComingThisWeek;
+  
+  console.log(`⏰ Cutoff: today=${dayMap[todayNum]} ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}, cutoff=${dayMap[cutoffDayNum]} ${cutoffTime}, upcoming=${cutoffIsComingThisWeek}, useThisWeek=${useThisWeek}`);
 
   let daysToAdd;
   if (useThisWeek) {
-    // Use this week's delivery date (delivery day is still upcoming this week)
-    daysToAdd = (deliveryDayNum - todayNum + 7) % 7;
-    if (daysToAdd === 0) {
-      daysToAdd = 7; // Delivery day is today but we want next week's date
+    // Use this week's delivery date
+    daysToAdd = deliveryDayNum - todayNum;
+    if (daysToAdd <= 0) {
+      daysToAdd += 7; // Delivery day hasn't occurred yet this week, add 7
     }
   } else {
     // Cutoff has passed, need NEXT week's delivery
