@@ -483,6 +483,9 @@ router.get('/delivery-options', async (req, res) => {
       });
     }
 
+    // CRITICAL FIX: Sort options chronologically by delivery_date (not by schedule_id/day)
+    options.sort((a, b) => new Date(a.delivery_date) - new Date(b.delivery_date));
+
     res.json({
       success: true,
       suburb: {
