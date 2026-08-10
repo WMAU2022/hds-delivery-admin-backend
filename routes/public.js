@@ -882,19 +882,80 @@ function getDayName(dayNum) {
 }
 
 /**
- * DEBUG ENDPOINT: Show all delivery schedules for region 1
+ * DEBUG ENDPOINT: Calculate Thursday date manually and show result
  */
-router.get('/debug/delivery-schedules', async (req, res) => {
+let lastDebugOutput = null;
+
+router.get('/debug/thursday-calc', async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM delivery_schedules WHERE region_id = 1 ORDER BY id`
-    );
+    // Simulate the exact calculation
+    const utcNow = new Date();
+    const sydneyNow = new Date(utcNow.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
-    return res.json({
-      total: result.rows.length,
-      schedules: result.rows,
-      columns: result.rows.length > 0 ? Object.keys(result.rows[0]) : []
-    });
+    const output = {
+      timestamp: new Date().toISOString(),
+      utc: utcNow.toISOString(),
+      sydney: sydneyNow.toISOString(),
+      day: dayMap[sydneyNow.getDay()],
+      time: `${sydneyNow.getHours()}:${String(sydneyNow.getMinutes()).padStart(2, '0')}`,
+      dayNum: sydneyNow.getDay(),
+      hours: sydneyNow.getHours(),
+      minutes: sydneyNow.getMinutes()
+    };
+    
+    // Calculate Thursday delivery
+    const cutoffDay = 1; // Monday
+    const deliveryDay = 4; // Thursday
+    const cutoffTime = '23:00';
+    const [cutoffHour] = cutoffTime.split(':').map(Number);
+    
+    const todayNum = sydneyNow.getDay();
+    const nowTimeInMinutes = sydneyNow.getHours() * 60 + sydneyNow.getMinutes();
+    const cutoffTimeInMinutes = cutoffHour * 60;
+    
+    let cutoffIsComingThisWeek = false;
+    if (cutoffDay > todayNum) {
+      cutoffIsComingThisWeek = true;
+    } else if (cutoffDay === 0 && todayNum > 0) {
+      cutoffIsComingThisWeek = true;
+    } else if (cutoffDay === todayNum) {
+      cutoffIsComingThisWeek = (nowTimeInMinutes < cutoffTimeInMinutes);
+    }
+    
+    output.cutoffDay = cutoffDay;
+    output.cutoffDayName = dayMap[cutoffDay];
+    output.cutoffTimeInMinutes = cutoffTimeInMinutes;
+    output.nowTimeInMinutes = nowTimeInMinutes;
+    output.cutoffIsComingThisWeek = cutoffIsComingThisWeek;
+    output.cutoffTimePassed = (nowTimeInMinutes >= cutoffTimeInMinutes);
+    
+    let daysToAdd;
+    if (cutoffIsComingThisWeek) {
+      daysToAdd = deliveryDay - todayNum;
+      if (daysToAdd <= 0) {
+        daysToAdd += 7;
+      }
+      output.logic = `UseThisWeek: delivery(${deliveryDay}) - today(${todayNum}) = ${deliveryDay - todayNum}, adjusted = ${daysToAdd}`;
+    } else {
+      const baseDaysToDelivery = (deliveryDay - todayNum + 7) % 7;
+      daysToAdd = baseDaysToDelivery === 0 ? 7 : baseDaysToDelivery;
+      daysToAdd += 7;
+      output.logic = `CutoffPassed: base=${baseDaysToDelivery}, plus 7 = ${daysToAdd}`;
+    }
+    
+    const nextDate = new Date(sydneyNow);
+    nextDate.setDate(nextDate.getDate() + daysToAdd);
+    nextDate.setHours(0, 0, 0, 0);
+    
+    output.daysToAdd = daysToAdd;
+    output.nextThursdayDelivery = nextDate.toISOString().split('T')[0];
+    output.nextThursdayDeliveryFormatted = nextDate.toDateString();
+    output.expected = '2026-08-13';
+    output.matches = (output.nextThursdayDelivery === '2026-08-13');
+    
+    lastDebugOutput = output;
+    return res.json(output);
   } catch (error) {
     console.error('Error:', error.message);
     return res.status(500).json({ error: error.message });
