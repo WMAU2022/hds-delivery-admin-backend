@@ -657,12 +657,15 @@ router.get('/delivery-options', async (req, res) => {
           // Format cutoff time for display (e.g., "23:00" → "11 PM", "14:00" → "2 PM")
           const displayCutoffTime = formatCutoffTime(cutoffTime);
 
+          // Format delivery date WITHOUT UTC conversion
+          const deliveryDateStr = `${deliveryDate.getFullYear()}-${String(deliveryDate.getMonth()+1).padStart(2,'0')}-${String(deliveryDate.getDate()).padStart(2,'0')}`;
+          
           options.push({
             schedule_id: schedule.id,
             delivery_day: deliveryDayName,
             delivery_window: schedule.hours || 'Standard Hours',
             cutoff_info: `${cutoffDayName} ${displayCutoffTime}`,
-            delivery_date: deliveryDate.toISOString().split('T')[0],
+            delivery_date: deliveryDateStr,
             pack_date: packDateStr,
             pack_day: packDayName,
             production_date: productionDateStr,
