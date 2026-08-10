@@ -569,32 +569,15 @@ router.get('/delivery-options', async (req, res) => {
 
     // 4. Calculate available delivery dates + pack dates
     // CRITICAL: Use Sydney timezone (Australia/Sydney), not server timezone
-    // Sydney is UTC+10
+    // Simple approach: add 10 hours to UTC to get Sydney time
     const utcNow = new Date();
-    // Convert UTC milliseconds to Sydney time
-    const sydneyOffsetMs = 10 * 60 * 60 * 1000; // UTC+10
-    const sydneyTimeMs = utcNow.getTime() + sydneyOffsetMs;
-    // Get Sydney date components from UTC
-    const tempForComponents = new Date(sydneyTimeMs);
-    const sydneyUTCYear = tempForComponents.getUTCFullYear();
-    const sydneyUTCMonth = tempForComponents.getUTCMonth();
-    const sydneyUTCDate = tempForComponents.getUTCDate();
-    const sydneyUTCHours = tempForComponents.getUTCHours();
-    const sydneyUTCMinutes = tempForComponents.getUTCMinutes();
-    
-    // Create a proper Sydney "date" object that represents Sydney local time
-    // We can't use native JS Date for this easily, so we'll work with string dates instead
-    const sydneyDateStr = `${sydneyUTCYear}-${String(sydneyUTCMonth+1).padStart(2,'0')}-${String(sydneyUTCDate).padStart(2,'0')}`;
-    const sydneyTimeStr = `${String(sydneyUTCHours).padStart(2,'0')}:${String(sydneyUTCMinutes).padStart(2,'0')}`;
-    
-    // For calculations, we still need a Date object
-    // Create it with Sydney components but treat it as our reference
-    const today = new Date(Date.UTC(sydneyUTCYear, sydneyUTCMonth, sydneyUTCDate, sydneyUTCHours, sydneyUTCMinutes, 0));
+    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000)); // UTC+10
+    const today = sydneyNow;  // Use sydneyNow as our reference time
     
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     console.log(`\n=== DELIVERY OPTIONS DEBUG ===`);
     console.log(`UTC Now: ${utcNow.toISOString()}`);
-    console.log(`Sydney Time (UTC+10): ${sydneyUTCYear}-${String(sydneyUTCMonth+1).padStart(2,'0')}-${String(sydneyUTCDate).padStart(2,'0')} ${sydneyTimeStr}`);
+    console.log(`Sydney Time (UTC+10): ${today.toISOString()}`);
     console.log(`Day: ${dayMap[today.getDay()]}, Time: ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`);
     console.log(`Postcode: ${postcode}, Suburb: ${suburb}`);
     const options = [];
