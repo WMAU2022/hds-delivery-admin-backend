@@ -568,16 +568,15 @@ router.get('/delivery-options', async (req, res) => {
     }
 
     // 4. Calculate available delivery dates + pack dates
-    // CRITICAL: Use Sydney timezone (Australia/Sydney), not server timezone
-    // Simple approach: add 10 hours to UTC to get Sydney time
+    // CRITICAL: Container is in UTC, so we must convert to Sydney (UTC+10)
     const utcNow = new Date();
-    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000)); // UTC+10
-    const today = sydneyNow;  // Use sydneyNow as our reference time
+    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000));
+    const today = sydneyNow;  // This is now Sydney time for date calculations
     
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     console.log(`\n=== DELIVERY OPTIONS DEBUG ===`);
     console.log(`UTC Now: ${utcNow.toISOString()}`);
-    console.log(`Sydney Time (UTC+10): ${today.toISOString()}`);
+    console.log(`Sydney Now (UTC+10): ${today.toISOString()}`);
     console.log(`Day: ${dayMap[today.getDay()]}, Time: ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`);
     console.log(`Postcode: ${postcode}, Suburb: ${suburb}`);
     const options = [];
@@ -759,12 +758,8 @@ router.get('/delivery-options', async (req, res) => {
  * Returns a Date object representing the delivery date at 00:00 Sydney time.
  */
 function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutoffTime = '14:00') {
-  // Ensure today is in Sydney time (not UTC)
-  // If it's UTC, add 10 hours
-  if (today.getUTCHours !== undefined && today.getUTCHours() !== today.getHours()) {
-    // Looks like UTC, convert to Sydney
-    today = new Date(today.getTime() + (10 * 60 * 60 * 1000));
-  }
+  // Assume `today` is already in Sydney local time (from new Date())
+  // No timezone conversion needed
   
   const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const reverseDayMap = {
@@ -804,32 +799,29 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
   // Calculate the delivery date
   let deliveryDate;
   
+  // Calculate days until the next occurrence of deliveryDay
+  const daysUntilDeliveryDay = (deliveryDayNum - todayNum + 7) % 7;
+  
   if (cutoffHasPassed) {
-    // Cutoff has passed → NEXT week's delivery
-    // Calculate days until next delivery day, then add 7 to skip current week
-    const daysUntilDelivery = (deliveryDayNum - todayNum + 7) % 7;
-    const daysToAdd = daysUntilDelivery === 0 ? 14 : (daysUntilDelivery + 7);
-    
-    console.log(`   Cutoff passed → next week: daysUntilDelivery=${daysUntilDelivery}, total=${daysToAdd}`);
+    // Cutoff has passed → need NEXT week's delivery, even if delivery day would occur this week
+    const daysToAdd = daysUntilDeliveryDay === 0 ? 7 : (daysUntilDeliveryDay + 7);
+    console.log(`   Cutoff passed → next week: daysUntilDeliveryDay=${daysUntilDeliveryDay}, adding ${daysToAdd}`);
     
     deliveryDate = new Date(today);
     deliveryDate.setDate(deliveryDate.getDate() + daysToAdd);
   } else {
-    // Cutoff hasn't passed yet → THIS week's delivery (if it hasn't occurred yet)
-    // or next occurrence if delivery day has already passed this week
-    const daysUntilDelivery = (deliveryDayNum - todayNum + 7) % 7;
-    
-    if (daysUntilDelivery === 0) {
-      // Delivery day is today → count as "next occurrence" (7 days away)
-      console.log(`   Cutoff not passed, but delivery day is today → use next week`);
-      const daysToAdd = 7;
+    // Cutoff hasn't passed → use THIS week's delivery (if coming) or next occurrence if it already passed
+    if (daysUntilDeliveryDay === 0) {
+      // Delivery day is TODAY → orders for today must have been placed before cutoff
+      // So we can't use today, skip to NEXT occurrence (7 days away)
+      console.log(`   Cutoff not passed, but delivery day is today → use next week (7 days)`);
       deliveryDate = new Date(today);
-      deliveryDate.setDate(deliveryDate.getDate() + daysToAdd);
+      deliveryDate.setDate(deliveryDate.getDate() + 7);
     } else {
-      // Delivery day is coming later this week
-      console.log(`   Cutoff not passed → this week: daysToAdd=${daysUntilDelivery}`);
+      // Delivery day is coming later this week (daysUntilDeliveryDay > 0)
+      console.log(`   Cutoff not passed → this week: ${daysUntilDeliveryDay} days away`);
       deliveryDate = new Date(today);
-      deliveryDate.setDate(deliveryDate.getDate() + daysUntilDelivery);
+      deliveryDate.setDate(deliveryDate.getDate() + daysUntilDeliveryDay);
     }
   }
 
@@ -911,20 +903,18 @@ let lastDebugOutput = null;
 
 router.get('/debug/thursday-calc', async (req, res) => {
   try {
-    // Simulate the exact calculation
-    const utcNow = new Date();
-    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000)); // Add 10 hours for Sydney UTC+10
+    // Simulate the exact calculation (using local Sydney time)
+    const now = new Date();
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     const output = {
       timestamp: new Date().toISOString(),
-      utc: utcNow.toISOString(),
-      sydney: sydneyNow.toISOString(),
-      day: dayMap[sydneyNow.getDay()],
-      time: `${sydneyNow.getHours()}:${String(sydneyNow.getMinutes()).padStart(2, '0')}`,
-      dayNum: sydneyNow.getDay(),
-      hours: sydneyNow.getHours(),
-      minutes: sydneyNow.getMinutes()
+      local: now.toLocaleString('en-AU'),
+      day: dayMap[now.getDay()],
+      time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
+      dayNum: now.getDay(),
+      hours: now.getHours(),
+      minutes: now.getMinutes()
     };
     
     // Calculate Thursday delivery
@@ -933,41 +923,49 @@ router.get('/debug/thursday-calc', async (req, res) => {
     const cutoffTime = '23:00';
     const [cutoffHour] = cutoffTime.split(':').map(Number);
     
-    const todayNum = sydneyNow.getDay();
-    const nowTimeInMinutes = sydneyNow.getHours() * 60 + sydneyNow.getMinutes();
+    const todayNum = now.getDay();
+    const nowTimeInMinutes = now.getHours() * 60 + now.getMinutes();
     const cutoffTimeInMinutes = cutoffHour * 60;
     
-    let cutoffIsComingThisWeek = false;
+    // Determine if cutoff deadline has passed
+    let cutoffHasPassed = false;
     if (cutoffDay > todayNum) {
-      cutoffIsComingThisWeek = true;
+      cutoffHasPassed = false;
     } else if (cutoffDay === 0 && todayNum > 0) {
-      cutoffIsComingThisWeek = true;
+      cutoffHasPassed = false;
     } else if (cutoffDay === todayNum) {
-      cutoffIsComingThisWeek = (nowTimeInMinutes < cutoffTimeInMinutes);
+      cutoffHasPassed = (nowTimeInMinutes >= cutoffTimeInMinutes);
+    } else {
+      cutoffHasPassed = true;
     }
     
     output.cutoffDay = cutoffDay;
     output.cutoffDayName = dayMap[cutoffDay];
     output.cutoffTimeInMinutes = cutoffTimeInMinutes;
     output.nowTimeInMinutes = nowTimeInMinutes;
-    output.cutoffIsComingThisWeek = cutoffIsComingThisWeek;
+    output.cutoffHasPassed = cutoffHasPassed;
     output.cutoffTimePassed = (nowTimeInMinutes >= cutoffTimeInMinutes);
     
+    // Calculate days until the next occurrence of deliveryDay
+    const daysUntilDeliveryDay = (deliveryDay - todayNum + 7) % 7;
+    
     let daysToAdd;
-    if (cutoffIsComingThisWeek) {
-      daysToAdd = deliveryDay - todayNum;
-      if (daysToAdd <= 0) {
-        daysToAdd += 7;
-      }
-      output.logic = `UseThisWeek: delivery(${deliveryDay}) - today(${todayNum}) = ${deliveryDay - todayNum}, adjusted = ${daysToAdd}`;
+    if (cutoffHasPassed) {
+      // Cutoff has passed → need NEXT week's delivery
+      daysToAdd = daysUntilDeliveryDay === 0 ? 7 : (daysUntilDeliveryDay + 7);
+      output.logic = `CutoffPassed: daysUntilDeliveryDay=${daysUntilDeliveryDay}, adding ${daysToAdd}`;
     } else {
-      const baseDaysToDelivery = (deliveryDay - todayNum + 7) % 7;
-      daysToAdd = baseDaysToDelivery === 0 ? 7 : baseDaysToDelivery;
-      daysToAdd += 7;
-      output.logic = `CutoffPassed: base=${baseDaysToDelivery}, plus 7 = ${daysToAdd}`;
+      // Cutoff hasn't passed → use THIS week or next occurrence
+      if (daysUntilDeliveryDay === 0) {
+        daysToAdd = 7;
+        output.logic = `Cutoff not passed but delivery is today: adding 7`;
+      } else {
+        daysToAdd = daysUntilDeliveryDay;
+        output.logic = `Cutoff not passed: this week in ${daysUntilDeliveryDay} days`;
+      }
     }
     
-    const nextDate = new Date(sydneyNow);
+    const nextDate = new Date(now);
     nextDate.setDate(nextDate.getDate() + daysToAdd);
     nextDate.setHours(0, 0, 0, 0);
     
