@@ -633,6 +633,11 @@ router.get('/delivery-options', async (req, res) => {
           );
           console.log(`   Iteration ${i}: returned ${deliveryDate.toDateString()}`);
           
+          // Format delivery date - add 1 day to compensate for timezone offset
+          const adjustedDate = new Date(deliveryDate);
+          adjustedDate.setDate(adjustedDate.getDate() + 1);
+          const deliveryDateStr = `${adjustedDate.getFullYear()}-${String(adjustedDate.getMonth()+1).padStart(2,'0')}-${String(adjustedDate.getDate()).padStart(2,'0')}`;
+          
           // Move to the next week for the next iteration
           currentDate = new Date(deliveryDate);
           currentDate.setDate(currentDate.getDate() + 7);
@@ -656,11 +661,6 @@ router.get('/delivery-options', async (req, res) => {
 
           // Format cutoff time for display (e.g., "23:00" → "11 PM", "14:00" → "2 PM")
           const displayCutoffTime = formatCutoffTime(cutoffTime);
-
-          // Format delivery date - add 1 day to compensate for timezone offset
-          const adjustedDate = new Date(deliveryDate);
-          adjustedDate.setDate(adjustedDate.getDate() + 1);
-          const deliveryDateStr = `${adjustedDate.getFullYear()}-${String(adjustedDate.getMonth()+1).padStart(2,'0')}-${String(adjustedDate.getDate()).padStart(2,'0')}`;
           
           options.push({
             schedule_id: schedule.id,
