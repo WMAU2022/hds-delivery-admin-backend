@@ -26,31 +26,8 @@ router.get('/service-days', async (req, res) => {
       });
     }
 
-    // Find region for this postcode
-    let regionId = null;
-    try {
-      if (suburbsStore && typeof suburbsStore.findByPostcode === 'function') {
-        const suburb = suburbsStore.findByPostcode(postcode.toString());
-        if (suburb) regionId = suburb.region_id;
-      }
-    } catch (e) {
-      console.warn('Store lookup failed:', e.message);
-    }
-
-    // Fallback to database if store doesn't work
-    if (!regionId) {
-      try {
-        const result = await pool.query(
-          'SELECT region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1',
-          [postcode.toString()]
-        );
-        if (result.rows.length > 0) {
-          regionId = result.rows[0].region_id;
-        }
-      } catch (dbError) {
-        console.warn('Database lookup failed:', dbError.message);
-      }
-    }
+    // Map postcode to region (hardcoded for known Sydney/Melbourne areas)
+    let regionId = determineRegionByPostcode(postcode.toString());
 
     if (!regionId) {
       return res.status(200).json({
@@ -84,6 +61,27 @@ router.get('/service-days', async (req, res) => {
     });
   }
 });
+
+/**
+ * Determine region ID by postcode (hardcoded for known areas)
+ */
+function determineRegionByPostcode(postcode) {
+  const postNum = parseInt(postcode);
+  
+  // Sydney Metro: 2000-2599
+  if (postNum >= 2000 && postNum <= 2599) return 1;
+  
+  // Newcastle: 2300-2399
+  if (postNum >= 2300 && postNum <= 2399) return 2;
+  
+  // Central Coast: 2250-2299
+  if (postNum >= 2250 && postNum <= 2299) return 3;
+  
+  // Melbourne Metro: 3000-3199, 3800-3999
+  if ((postNum >= 3000 && postNum <= 3199) || (postNum >= 3800 && postNum <= 3999)) return 6;
+  
+  return null;
+}
 
 /**
  * Hardcoded region schedules matching HDS admin dashboard config
