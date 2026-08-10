@@ -7,7 +7,7 @@ const suburbsStore = require('../lib/suburbs-sync-store');
  * GET /api/serviceable/service-days?postcode=2000&weeksToShow=4
  * 
  * Calculate available delivery dates based on region schedule + cutoff times
- * Respects Monday, Tuesday, Wednesday, Thursday cutoff times per HDS config
+ * Uses hardcoded schedule config for each region matching HDS dashboard
  * 
  * Response:
  * {
@@ -26,74 +26,50 @@ router.get('/service-days', async (req, res) => {
       });
     }
 
-    // Find a suburb with this postcode
-    let suburb = null;
+    // Find region for this postcode
+    let regionId = null;
     try {
       if (suburbsStore && typeof suburbsStore.findByPostcode === 'function') {
-        suburb = suburbsStore.findByPostcode(postcode.toString());
+        const suburb = suburbsStore.findByPostcode(postcode.toString());
+        if (suburb) regionId = suburb.region_id;
       }
     } catch (e) {
       console.warn('Store lookup failed:', e.message);
     }
 
-    if (!suburb) {
+    // Fallback to database if store doesn't work
+    if (!regionId) {
       try {
         const result = await pool.query(
-          'SELECT id, name, postcode, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1',
+          'SELECT region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1',
           [postcode.toString()]
         );
         if (result.rows.length > 0) {
-          suburb = result.rows[0];
+          regionId = result.rows[0].region_id;
         }
       } catch (dbError) {
         console.warn('Database lookup failed:', dbError.message);
       }
     }
 
-    if (!suburb || !suburb.region_id) {
+    if (!regionId) {
       return res.status(200).json({
         serviceable: false,
         available_dates: [],
       });
     }
 
-    // Get schedules for this region from database
-    let schedules = [];
-    try {
-      const result = await pool.query(
-        `SELECT id, region_id, delivery_day, cutoff_day, cutoff_time
-         FROM delivery_schedules
-         WHERE region_id = $1
-         ORDER BY CASE delivery_day
-           WHEN 'Monday' THEN 1
-           WHEN 'Tuesday' THEN 2
-           WHEN 'Wednesday' THEN 3
-           WHEN 'Thursday' THEN 4
-           WHEN 'Friday' THEN 5
-           WHEN 'Saturday' THEN 6
-           WHEN 'Sunday' THEN 0
-         END`,
-        [suburb.region_id]
-      );
-      schedules = result.rows;
-    } catch (dbError) {
-      console.warn('Schedule lookup failed:', dbError.message);
-      return res.status(200).json({
-        serviceable: false,
-        error: 'Could not load delivery schedules',
-        available_dates: [],
-      });
-    }
-
-    if (schedules.length === 0) {
+    // Get hardcoded schedule for region (matches HDS admin config)
+    const schedule = getRegionSchedule(regionId);
+    if (!schedule) {
       return res.status(200).json({
         serviceable: false,
         available_dates: [],
       });
     }
 
-    // Calculate available dates
-    const availableDates = calculateAvailableDates(schedules, parseInt(weeksToShow) || 4);
+    // Calculate available dates based on schedule
+    const availableDates = calculateAvailableDates(schedule, parseInt(weeksToShow) || 4);
 
     return res.json({
       serviceable: true,
@@ -110,37 +86,58 @@ router.get('/service-days', async (req, res) => {
 });
 
 /**
- * Calculate available delivery dates based on schedules and current cutoff times
- * Returns dates that are within the booking window for each delivery day
+ * Hardcoded region schedules matching HDS admin dashboard config
+ * Format: { deliveryDay: { cutoffDay, cutoffTime (24h) } }
  */
-function calculateAvailableDates(schedules, weeksToShow) {
+function getRegionSchedule(regionId) {
+  const schedules = {
+    1: { // Sydney Metro
+      'Thursday': { cutoffDay: 'Monday', cutoffTime: '23:00' },
+      'Friday': { cutoffDay: 'Tuesday', cutoffTime: '14:00' },
+      'Saturday': { cutoffDay: 'Thursday', cutoffTime: '14:00' },
+      'Sunday': { cutoffDay: 'Friday', cutoffTime: '14:00' },
+    },
+    2: { // Newcastle
+      'Thursday': { cutoffDay: 'Monday', cutoffTime: '14:00' },
+      'Friday': { cutoffDay: 'Tuesday', cutoffTime: '14:00' },
+      'Saturday': { cutoffDay: 'Thursday', cutoffTime: '14:00' },
+    },
+    6: { // Melbourne Metro
+      'Wednesday': { cutoffDay: 'Monday', cutoffTime: '14:00' },
+      'Thursday': { cutoffDay: 'Tuesday', cutoffTime: '14:00' },
+      'Friday': { cutoffDay: 'Wednesday', cutoffTime: '14:00' },
+    },
+  };
+
+  return schedules[regionId] || null;
+}
+
+/**
+ * Calculate available delivery dates based on schedule and current cutoff times
+ * Only returns dates where current time is BEFORE the cutoff deadline
+ */
+function calculateAvailableDates(schedule, weeksToShow) {
   const now = new Date();
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const dayMap = {};
-  
-  // Build a map of delivery days to schedules
-  schedules.forEach(sched => {
-    dayMap[sched.delivery_day] = sched;
-  });
-
-  // Generate delivery dates
   const dates = new Set();
   const endDate = new Date(now.getTime() + (weeksToShow * 7 * 24 * 60 * 60 * 1000));
 
+  // Iterate through each day in the range
   for (let d = new Date(now); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const dayName = dayNames[d.getDay()];
-    const schedule = dayMap[dayName];
+    const deliveryDayName = dayNames[d.getDay()];
+    const scheduleEntry = schedule[deliveryDayName];
 
-    if (!schedule) continue; // No delivery on this day
+    if (!scheduleEntry) continue; // No delivery on this day
 
-    // Parse cutoff time (format: "HH:MM" or "HH:MM AM/PM")
-    const cutoffTime = parseCutoffTime(schedule.cutoff_time);
-    const cutoffDay = getCutoffDayDate(schedule.cutoff_day, d);
-    const cutoffDate = new Date(cutoffDay);
-    cutoffDate.setHours(cutoffTime.hours, cutoffTime.minutes, 0, 0);
+    // Calculate the cutoff deadline for this delivery date
+    const cutoffDeadline = calculateCutoffDeadline(
+      d,
+      scheduleEntry.cutoffDay,
+      scheduleEntry.cutoffTime
+    );
 
-    // Check if current time is before cutoff
-    if (now < cutoffDate) {
+    // Only include this delivery date if we're still before the cutoff
+    if (now < cutoffDeadline) {
       dates.add(formatDate(d));
     }
   }
@@ -149,40 +146,29 @@ function calculateAvailableDates(schedules, weeksToShow) {
 }
 
 /**
- * Parse cutoff time string to hours/minutes
- * Handles formats like "23:00", "11 PM", "2 PM", etc.
+ * Calculate the exact cutoff deadline for a delivery date
+ * Example: Thursday delivery with Monday 11pm cutoff
+ *   → Find the Monday BEFORE this Thursday
+ *   → Add the cutoff time to that Monday
+ *   → Return the resulting datetime
  */
-function parseCutoffTime(timeStr) {
-  if (!timeStr) return { hours: 23, minutes: 0 }; // Default to 11 PM
-
-  const match = timeStr.match(/(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?/i);
-  if (!match) return { hours: 23, minutes: 0 };
-
-  let hours = parseInt(match[1]);
-  const minutes = match[2] ? parseInt(match[2]) : 0;
-  const period = match[3]?.toLowerCase();
-
-  if (period === 'pm' && hours !== 12) hours += 12;
-  if (period === 'am' && hours === 12) hours = 0;
-
-  return { hours, minutes };
-}
-
-/**
- * Get the actual cutoff date based on cutoff day relative to delivery date
- * For example, if cutoff_day is "Monday" and delivery is "Thursday",
- * return the Monday before that Thursday
- */
-function getCutoffDayDate(cutoffDay, deliveryDate) {
+function calculateCutoffDeadline(deliveryDate, cutoffDay, cutoffTime) {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const cutoffDayIndex = dayNames.indexOf(cutoffDay);
   const deliveryDayIndex = deliveryDate.getDay();
 
+  // Calculate how many days back to go to reach the cutoff day
   let daysBack = deliveryDayIndex - cutoffDayIndex;
-  if (daysBack <= 0) daysBack += 7; // Go back a full week if cutoff is same day or after
+  if (daysBack <= 0) daysBack += 7;
 
+  // Create the cutoff date (same day as delivery but cutoffDay of week)
   const cutoffDate = new Date(deliveryDate);
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+
+  // Parse and apply the cutoff time (format: "HH:MM" in 24h)
+  const [hours, minutes] = cutoffTime.split(':').map(Number);
+  cutoffDate.setHours(hours, minutes, 0, 0);
+
   return cutoffDate;
 }
 
