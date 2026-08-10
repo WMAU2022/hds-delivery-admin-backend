@@ -866,26 +866,34 @@ function getDayName(dayNum) {
 }
 
 /**
- * FIX ENDPOINT: Update Thursday schedule start_date to Aug 13
- * This is a one-time fix for the Thursday delivery schedule
+ * FIX ENDPOINT: Inspect Thursday schedule and fix it
  */
 router.post('/fix-thursday-schedule', async (req, res) => {
   try {
-    const result = await pool.query(
-      `UPDATE delivery_schedules 
-       SET start_date = '2026-08-13'::date
-       WHERE id = 7 AND region_id = 1`,
+    // First, get the Thursday schedule to see what columns it has
+    const sched = await pool.query(
+      `SELECT * FROM delivery_schedules WHERE id = 7 AND region_id = 1`
     );
     
-    console.log('✅ Updated Thursday schedule start_date to 2026-08-13');
+    if (sched.rows.length === 0) {
+      return res.json({ error: 'Thursday schedule not found' });
+    }
     
+    const schedule = sched.rows[0];
+    console.log('Current Thursday schedule:', schedule);
+    
+    // The issue: calculate first delivery date for Thursday with Mon 11pm cutoff
+    // Mon 21:18 < Mon 23:00 → use this week → Thu Aug 13
+    // But the API returns Aug 20
+    // This means the schedule.delivery_dates or similar column might be filtering
+    
+    // Let's check what's in the schedule
     return res.json({
-      success: true,
-      message: 'Thursday schedule start_date updated to Aug 13',
-      rows_affected: result.rowCount
+      schedule,
+      columns: Object.keys(schedule)
     });
   } catch (error) {
-    console.error('Fix error:', error.message);
+    console.error('Inspect error:', error.message);
     return res.status(500).json({
       success: false,
       error: error.message
