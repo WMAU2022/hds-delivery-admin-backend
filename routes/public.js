@@ -592,23 +592,22 @@ router.get('/delivery-options', async (req, res) => {
         const deliveryDayName = typeof schedule.delivery_day === 'number' ? dayMap[schedule.delivery_day] : schedule.delivery_day;
         console.log(`📅 Processing schedule ${schedule.id}: cutoff=${cutoffDayName}, pack=${packDayName}, delivery=${deliveryDayName}`);
         
-        // Get cutoff time from region (default to 23:00 / 11 PM for orders, shown as 2 PM display fallback)
+        // Get cutoff time from region (default to 23:00 / 11 PM for orders)
         let cutoffTime = '23:00';  // Default cutoff time: 11 PM
-        try {
-          const regionCutoffResult = await pool.query(
-            `SELECT cutoff_time FROM regions WHERE id = $1`,
-            [suburbRecord.region_id]
-          );
-          if (regionCutoffResult.rows.length > 0) {
-            const dbCutoffTime = regionCutoffResult.rows[0].cutoff_time;
-            if (dbCutoffTime && dbCutoffTime.trim() !== '') {
-              cutoffTime = dbCutoffTime;
-            }
-          }
-        } catch (e) {
-          console.warn('Could not fetch cutoff time from region:', e.message);
+        
+        // Hardcode cutoff times for known regions since database might not have the column
+        const regionCutoffTimes = {
+          1: '23:00',  // Sydney Metro: 11 PM
+          2: '14:00',  // Newcastle: 2 PM
+          3: '14:00',  // Central Coast: 2 PM
+          6: '14:00',  // Melbourne: 2 PM
+        };
+        
+        if (regionCutoffTimes[suburbRecord.region_id]) {
+          cutoffTime = regionCutoffTimes[suburbRecord.region_id];
         }
-        console.log(`⏰ Region cutoff time: ${cutoffTime}`);
+        
+        console.log(`⏰ Region ${suburbRecord.region_id} cutoff time: ${cutoffTime}`);
         
         // Generate 6 upcoming delivery dates for this schedule
         // Start by calculating the first available date, then add 7 days for each iteration
