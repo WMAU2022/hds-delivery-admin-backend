@@ -612,6 +612,9 @@ router.get('/delivery-options', async (req, res) => {
         // Generate 6 upcoming delivery dates for this schedule
         // Start by calculating the first available date, then add 7 days for each iteration
         let currentDate = new Date(today);
+        console.log(`📅 Calculating dates for ${deliveryDayName} (schedule ${schedule.id})`);
+        console.log(`   Today: ${today.toISOString()}, Cutoff: ${cutoffDayName} ${cutoffTime}`);
+        
         for (let i = 0; i < 6; i++) {
           const deliveryDate = calculateNextDeliveryDate(
             currentDate,
@@ -620,6 +623,8 @@ router.get('/delivery-options', async (req, res) => {
             deliveryDayName,
             cutoffTime  // Pass cutoff time for proper cutoff checking
           );
+          console.log(`   Iteration ${i}: returned ${deliveryDate.toDateString()}`);
+          
           // Move to the next week for the next iteration
           currentDate = new Date(deliveryDate);
           currentDate.setDate(currentDate.getDate() + 7);
