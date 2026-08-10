@@ -870,32 +870,18 @@ function getDayName(dayNum) {
 }
 
 /**
- * FIX ENDPOINT: Check what cutoff_time is set for region 1
+ * DEBUG ENDPOINT: Show all delivery schedules for region 1
  */
-router.post('/fix-thursday-schedule', async (req, res) => {
+router.get('/debug/delivery-schedules', async (req, res) => {
   try {
-    // Get the region
-    const region = await pool.query(
-      `SELECT * FROM regions WHERE id = 1`
-    );
-    
-    if (region.rows.length === 0) {
-      return res.json({ error: 'Region not found' });
-    }
-    
-    const reg = region.rows[0];
-    console.log('Region 1:', reg);
-    
-    // Get the Thursday schedule
-    const sched = await pool.query(
-      `SELECT * FROM delivery_schedules WHERE id = 7 AND region_id = 1`
+    const result = await pool.query(
+      `SELECT * FROM delivery_schedules WHERE region_id = 1 ORDER BY id`
     );
     
     return res.json({
-      region: reg,
-      schedule: sched.rows[0],
-      region_columns: Object.keys(reg),
-      region_cutoff_time: reg.cutoff_time
+      total: result.rows.length,
+      schedules: result.rows,
+      columns: result.rows.length > 0 ? Object.keys(result.rows[0]) : []
     });
   } catch (error) {
     console.error('Error:', error.message);
