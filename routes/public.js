@@ -4,6 +4,199 @@ const pool = require('../lib/db');
 const suburbsStore = require('../lib/suburbs-sync-store');
 
 /**
+ * GET /api/serviceable/service-days?postcode=2000&weeksToShow=4
+ * 
+ * Calculate available delivery dates based on region schedule + cutoff times
+ * Respects Monday, Tuesday, Wednesday, Thursday cutoff times per HDS config
+ * 
+ * Response:
+ * {
+ *   serviceable: true,
+ *   available_dates: ["2026-08-13", "2026-08-14", "2026-08-15", ...]
+ * }
+ */
+router.get('/service-days', async (req, res) => {
+  try {
+    const { postcode, weeksToShow = 4 } = req.query;
+
+    if (!postcode) {
+      return res.status(400).json({
+        serviceable: false,
+        error: 'postcode parameter is required',
+      });
+    }
+
+    // Find a suburb with this postcode
+    let suburb = null;
+    try {
+      if (suburbsStore && typeof suburbsStore.findByPostcode === 'function') {
+        suburb = suburbsStore.findByPostcode(postcode.toString());
+      }
+    } catch (e) {
+      console.warn('Store lookup failed:', e.message);
+    }
+
+    if (!suburb) {
+      try {
+        const result = await pool.query(
+          'SELECT id, name, postcode, region_id FROM suburbs WHERE postcode::text = $1 LIMIT 1',
+          [postcode.toString()]
+        );
+        if (result.rows.length > 0) {
+          suburb = result.rows[0];
+        }
+      } catch (dbError) {
+        console.warn('Database lookup failed:', dbError.message);
+      }
+    }
+
+    if (!suburb || !suburb.region_id) {
+      return res.status(200).json({
+        serviceable: false,
+        available_dates: [],
+      });
+    }
+
+    // Get schedules for this region from database
+    let schedules = [];
+    try {
+      const result = await pool.query(
+        `SELECT id, region_id, delivery_day, cutoff_day, cutoff_time
+         FROM delivery_schedules
+         WHERE region_id = $1
+         ORDER BY CASE delivery_day
+           WHEN 'Monday' THEN 1
+           WHEN 'Tuesday' THEN 2
+           WHEN 'Wednesday' THEN 3
+           WHEN 'Thursday' THEN 4
+           WHEN 'Friday' THEN 5
+           WHEN 'Saturday' THEN 6
+           WHEN 'Sunday' THEN 0
+         END`,
+        [suburb.region_id]
+      );
+      schedules = result.rows;
+    } catch (dbError) {
+      console.warn('Schedule lookup failed:', dbError.message);
+      return res.status(200).json({
+        serviceable: false,
+        error: 'Could not load delivery schedules',
+        available_dates: [],
+      });
+    }
+
+    if (schedules.length === 0) {
+      return res.status(200).json({
+        serviceable: false,
+        available_dates: [],
+      });
+    }
+
+    // Calculate available dates
+    const availableDates = calculateAvailableDates(schedules, parseInt(weeksToShow) || 4);
+
+    return res.json({
+      serviceable: true,
+      available_dates: availableDates,
+    });
+  } catch (error) {
+    console.error('Service days error:', error.message);
+    return res.status(200).json({
+      serviceable: false,
+      error: error.message,
+      available_dates: [],
+    });
+  }
+});
+
+/**
+ * Calculate available delivery dates based on schedules and current cutoff times
+ * Returns dates that are within the booking window for each delivery day
+ */
+function calculateAvailableDates(schedules, weeksToShow) {
+  const now = new Date();
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayMap = {};
+  
+  // Build a map of delivery days to schedules
+  schedules.forEach(sched => {
+    dayMap[sched.delivery_day] = sched;
+  });
+
+  // Generate delivery dates
+  const dates = new Set();
+  const endDate = new Date(now.getTime() + (weeksToShow * 7 * 24 * 60 * 60 * 1000));
+
+  for (let d = new Date(now); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dayName = dayNames[d.getDay()];
+    const schedule = dayMap[dayName];
+
+    if (!schedule) continue; // No delivery on this day
+
+    // Parse cutoff time (format: "HH:MM" or "HH:MM AM/PM")
+    const cutoffTime = parseCutoffTime(schedule.cutoff_time);
+    const cutoffDay = getCutoffDayDate(schedule.cutoff_day, d);
+    const cutoffDate = new Date(cutoffDay);
+    cutoffDate.setHours(cutoffTime.hours, cutoffTime.minutes, 0, 0);
+
+    // Check if current time is before cutoff
+    if (now < cutoffDate) {
+      dates.add(formatDate(d));
+    }
+  }
+
+  return Array.from(dates).sort();
+}
+
+/**
+ * Parse cutoff time string to hours/minutes
+ * Handles formats like "23:00", "11 PM", "2 PM", etc.
+ */
+function parseCutoffTime(timeStr) {
+  if (!timeStr) return { hours: 23, minutes: 0 }; // Default to 11 PM
+
+  const match = timeStr.match(/(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?/i);
+  if (!match) return { hours: 23, minutes: 0 };
+
+  let hours = parseInt(match[1]);
+  const minutes = match[2] ? parseInt(match[2]) : 0;
+  const period = match[3]?.toLowerCase();
+
+  if (period === 'pm' && hours !== 12) hours += 12;
+  if (period === 'am' && hours === 12) hours = 0;
+
+  return { hours, minutes };
+}
+
+/**
+ * Get the actual cutoff date based on cutoff day relative to delivery date
+ * For example, if cutoff_day is "Monday" and delivery is "Thursday",
+ * return the Monday before that Thursday
+ */
+function getCutoffDayDate(cutoffDay, deliveryDate) {
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const cutoffDayIndex = dayNames.indexOf(cutoffDay);
+  const deliveryDayIndex = deliveryDate.getDay();
+
+  let daysBack = deliveryDayIndex - cutoffDayIndex;
+  if (daysBack <= 0) daysBack += 7; // Go back a full week if cutoff is same day or after
+
+  const cutoffDate = new Date(deliveryDate);
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+  return cutoffDate;
+}
+
+/**
+ * Format date as YYYY-MM-DD
+ */
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * GET /api/public/pick-pack-date?deliveryDate=2026-04-26&postcode=2000
  * 
  * Calculate pack date based on delivery date and region schedule
