@@ -784,14 +784,18 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
   
   useThisWeek = cutoffIsComingThisWeek;
   
-  console.log(`⏰ Cutoff: today=${dayMap[todayNum]} ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}, cutoff=${dayMap[cutoffDayNum]} ${cutoffTime}, upcoming=${cutoffIsComingThisWeek}, useThisWeek=${useThisWeek}`);
+  console.log(`⏰ Cutoff check: today=${dayMap[todayNum]} ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}, cutoff=${dayMap[cutoffDayNum]} ${cutoffTime}`);
+  console.log(`   Cutoff upcoming this week: ${cutoffIsComingThisWeek}, useThisWeek: ${useThisWeek}`);
+  console.log(`   Delivery day needed: ${dayMap[deliveryDayNum]}, delivery_day_num=${deliveryDayNum}`);
 
   let daysToAdd;
   if (useThisWeek) {
     // Use this week's delivery date
     daysToAdd = deliveryDayNum - todayNum;
+    console.log(`   UseThisWeek: delivery(${deliveryDayNum}) - today(${todayNum}) = ${daysToAdd}`);
     if (daysToAdd <= 0) {
       daysToAdd += 7; // Delivery day hasn't occurred yet this week, add 7
+      console.log(`   Adjusted (add 7): ${daysToAdd}`);
     }
   } else {
     // Cutoff has passed, need NEXT week's delivery
@@ -799,6 +803,7 @@ function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutof
     const baseDaysToDelivery = (deliveryDayNum - todayNum + 7) % 7;
     daysToAdd = baseDaysToDelivery === 0 ? 7 : baseDaysToDelivery;
     daysToAdd += 7;  // Add 7 more days to skip the current week
+    console.log(`   Cutoff passed: baseDays=${baseDaysToDelivery}, final=${daysToAdd}`);
   }
 
   const nextDate = new Date(today);
