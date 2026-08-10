@@ -36,9 +36,42 @@ router.get('/service-days', async (req, res) => {
       });
     }
 
-    // Get hardcoded schedule for region (matches HDS admin config)
-    const schedule = getRegionSchedule(regionId);
-    if (!schedule) {
+    // Get schedule for region from database
+    let schedule = null;
+    try {
+      const result = await pool.query(
+        `SELECT delivery_day, cutoff_day, cutoff_time
+         FROM delivery_schedules
+         WHERE region_id = $1
+         ORDER BY CASE delivery_day
+           WHEN 'Sunday' THEN 0
+           WHEN 'Monday' THEN 1
+           WHEN 'Tuesday' THEN 2
+           WHEN 'Wednesday' THEN 3
+           WHEN 'Thursday' THEN 4
+           WHEN 'Friday' THEN 5
+           WHEN 'Saturday' THEN 6
+         END`,
+        [regionId]
+      );
+      
+      if (result.rows.length > 0) {
+        // Convert array to object keyed by delivery_day
+        schedule = {};
+        result.rows.forEach(row => {
+          schedule[row.delivery_day] = {
+            cutoffDay: row.cutoff_day,
+            cutoffTime: row.cutoff_time
+          };
+        });
+      }
+    } catch (dbError) {
+      console.error('Database schedule lookup failed:', dbError.message);
+      // Fallback to hardcoded only if DB fails
+      schedule = getRegionSchedule(regionId);
+    }
+    
+    if (!schedule || Object.keys(schedule).length === 0) {
       return res.status(200).json({
         serviceable: false,
         available_dates: [],
