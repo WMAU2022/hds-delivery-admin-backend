@@ -569,10 +569,17 @@ router.get('/delivery-options', async (req, res) => {
 
     // 4. Calculate available delivery dates + pack dates
     // CRITICAL: Use Sydney timezone (Australia/Sydney), not server timezone
-    const sydneyNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const utcNow = new Date();
+    const sydneyNow = new Date(utcNow.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
     const today = sydneyNow;
-    const options = [];
+    
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    console.log(`\n=== DELIVERY OPTIONS DEBUG ===`);
+    console.log(`UTC Now: ${utcNow.toISOString()}`);
+    console.log(`Sydney Now: ${sydneyNow.toISOString()}`);
+    console.log(`Day: ${dayMap[today.getDay()]}, Time: ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`);
+    console.log(`Postcode: ${postcode}, Suburb: ${suburb}`);
+    const options = [];
     const reverseDayMap = {
       'Sunday': 0,
       'Monday': 1,
