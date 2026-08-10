@@ -569,10 +569,27 @@ router.get('/delivery-options', async (req, res) => {
 
     // 4. Calculate available delivery dates + pack dates
     // CRITICAL: Use Sydney timezone (Australia/Sydney), not server timezone
-    // Sydney is UTC+10 (or UTC+11 during daylight savings)
+    // Sydney is UTC+10
     const utcNow = new Date();
-    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000)); // Add 10 hours for Sydney
-    const today = sydneyNow;
+    // Convert UTC milliseconds to Sydney time
+    const sydneyOffsetMs = 10 * 60 * 60 * 1000; // UTC+10
+    const sydneyTimeMs = utcNow.getTime() + sydneyOffsetMs;
+    // Get Sydney date components from UTC
+    const tempForComponents = new Date(sydneyTimeMs);
+    const sydneyUTCYear = tempForComponents.getUTCFullYear();
+    const sydneyUTCMonth = tempForComponents.getUTCMonth();
+    const sydneyUTCDate = tempForComponents.getUTCDate();
+    const sydneyUTCHours = tempForComponents.getUTCHours();
+    const sydneyUTCMinutes = tempForComponents.getUTCMinutes();
+    
+    // Create a proper Sydney "date" object that represents Sydney local time
+    // We can't use native JS Date for this easily, so we'll work with string dates instead
+    const sydneyDateStr = `${sydneyUTCYear}-${String(sydneyUTCMonth+1).padStart(2,'0')}-${String(sydneyUTCDate).padStart(2,'0')}`;
+    const sydneyTimeStr = `${String(sydneyUTCHours).padStart(2,'0')}:${String(sydneyUTCMinutes).padStart(2,'0')}`;
+    
+    // For calculations, we still need a Date object
+    // Create it with Sydney components but treat it as our reference
+    const today = new Date(Date.UTC(sydneyUTCYear, sydneyUTCMonth, sydneyUTCDate, sydneyUTCHours, sydneyUTCMinutes, 0));
     
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     console.log(`\n=== DELIVERY OPTIONS DEBUG ===`);
@@ -641,24 +658,26 @@ router.get('/delivery-options', async (req, res) => {
           const isBlackout = await checkBlackoutDate(suburb.region_id, deliveryDate);
           if (isBlackout) continue;
 
-          // Calculate pack date from delivery date and pack day
-          const deliveryDayNum = deliveryDate.getDay();
+          // Calculate pack date from adjusted delivery date
+          const deliveryDayNum = adjustedDate.getDay();
           const packDayNum = reverseDayMap[packDayName];
           const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
-          const packDateObj = new Date(deliveryDate);
+          const packDateObj = new Date(adjustedDate);
           packDateObj.setDate(packDateObj.getDate() - dayDifference);
-          const packDateStr = packDateObj.toISOString().split('T')[0];
+          const packDateStr = `${packDateObj.getFullYear()}-${String(packDateObj.getMonth()+1).padStart(2,'0')}-${String(packDateObj.getDate()).padStart(2,'0')}`;
 
           // Calculate production date (1 day before pack date)
           const productionDateObj = new Date(packDateObj);
           productionDateObj.setDate(productionDateObj.getDate() - 1);
-          const productionDateStr = productionDateObj.toISOString().split('T')[0];
+          const productionDateStr = `${productionDateObj.getFullYear()}-${String(productionDateObj.getMonth()+1).padStart(2,'0')}-${String(productionDateObj.getDate()).padStart(2,'0')}`;
 
           // Format cutoff time for display (e.g., "23:00" → "11 PM", "14:00" → "2 PM")
           const displayCutoffTime = formatCutoffTime(cutoffTime);
 
-          // Format delivery date WITHOUT UTC conversion
-          const deliveryDateStr = `${deliveryDate.getFullYear()}-${String(deliveryDate.getMonth()+1).padStart(2,'0')}-${String(deliveryDate.getDate()).padStart(2,'0')}`;
+          // Format delivery date - add 1 day to compensate for timezone offset
+          const adjustedDate = new Date(deliveryDate);
+          adjustedDate.setDate(adjustedDate.getDate() + 1);
+          const deliveryDateStr = `${adjustedDate.getFullYear()}-${String(adjustedDate.getMonth()+1).padStart(2,'0')}-${String(adjustedDate.getDate()).padStart(2,'0')}`;
           
           options.push({
             schedule_id: schedule.id,
@@ -669,7 +688,7 @@ router.get('/delivery-options', async (req, res) => {
             pack_date: packDateStr,
             pack_day: packDayName,
             production_date: productionDateStr,
-            formatted_date: deliveryDate.toLocaleDateString('en-AU', {
+            formatted_date: adjustedDate.toLocaleDateString('en-AU', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
