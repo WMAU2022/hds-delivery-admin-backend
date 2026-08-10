@@ -145,7 +145,11 @@ function getRegionSchedule(regionId) {
 
 /**
  * Calculate available delivery dates based on schedule and current cutoff times
- * Only returns dates where current time is BEFORE the cutoff deadline
+ * NEW ALGORITHM:
+ * 1. For EACH delivery day in the schedule
+ * 2. Calculate the NEXT occurrence of that delivery day considering cutoff logic
+ * 3. Keep collecting delivery dates for weeksToShow weeks
+ * 4. Return sorted unique dates
  */
 function calculateAvailableDates(schedule, weeksToShow) {
   const now = new Date();
@@ -153,23 +157,29 @@ function calculateAvailableDates(schedule, weeksToShow) {
   const dates = new Set();
   const endDate = new Date(now.getTime() + (weeksToShow * 7 * 24 * 60 * 60 * 1000));
 
-  // Iterate through each day in the range
-  for (let d = new Date(now); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const deliveryDayName = dayNames[d.getDay()];
-    const scheduleEntry = schedule[deliveryDayName];
+  // Get unique delivery days from schedule
+  const deliveryDaysInSchedule = Object.keys(schedule).map(day => ({
+    name: day,
+    cutoffDay: schedule[day].cutoffDay,
+    cutoffTime: schedule[day].cutoffTime
+  }));
 
-    if (!scheduleEntry) continue; // No delivery on this day
-
-    // Calculate the cutoff deadline for this delivery date
-    const cutoffDeadline = calculateCutoffDeadline(
-      d,
-      scheduleEntry.cutoffDay,
-      scheduleEntry.cutoffTime
+  // For each delivery day defined in the schedule
+  for (const deliveryInfo of deliveryDaysInSchedule) {
+    // Calculate the next available delivery date for this schedule entry
+    let nextDeliveryDate = calculateNextAvailableDeliveryDate(
+      now,
+      deliveryInfo.name,
+      deliveryInfo.cutoffDay,
+      deliveryInfo.cutoffTime
     );
 
-    // Only include this delivery date if we're still before the cutoff
-    if (now < cutoffDeadline) {
-      dates.add(formatDate(d));
+    // Collect this delivery day for weeksToShow weeks
+    while (nextDeliveryDate <= endDate) {
+      dates.add(formatDate(nextDeliveryDate));
+      // Move to next occurrence (7 days later)
+      nextDeliveryDate = new Date(nextDeliveryDate);
+      nextDeliveryDate.setDate(nextDeliveryDate.getDate() + 7);
     }
   }
 
@@ -177,26 +187,103 @@ function calculateAvailableDates(schedule, weeksToShow) {
 }
 
 /**
- * Calculate the exact cutoff deadline for a delivery date
- * Example: Thursday delivery with Monday 11pm cutoff
- *   → Find the Monday BEFORE this Thursday
- *   → Add the cutoff time to that Monday
- *   → Return the resulting datetime
+ * Calculate the NEXT available delivery date for a specific delivery day
+ * considering its cutoff day and time.
+ * 
+ * Algorithm:
+ * 1. Find when the cutoff deadline is for THIS WEEK's delivery
+ * 2. If cutoff is still open (now < deadline): use THIS WEEK's delivery date
+ * 3. If cutoff is closed: use NEXT WEEK's delivery date
  */
-function calculateCutoffDeadline(deliveryDate, cutoffDay, cutoffTime) {
+function calculateNextAvailableDeliveryDate(now, deliveryDay, cutoffDay, cutoffTime) {
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const deliveryDayIndex = dayNames.indexOf(deliveryDay);
+  const cutoffDayIndex = dayNames.indexOf(cutoffDay);
+  const nowDayIndex = now.getDay();
+
+  // Parse cutoff time
+  const [cutoffHour, cutoffMin] = cutoffTime.split(':').map(Number);
+
+  // Calculate the cutoff deadline for THIS WEEK's delivery
+  // Special handling for Sunday cutoff day (wrap-around)
+  let daysUntilCutoffDay;
+  if (cutoffDayIndex === 0 && nowDayIndex > 0) {
+    // Cutoff is Sunday, today is Mon-Sat → Sunday hasn't happened yet, it's next Sunday
+    daysUntilCutoffDay = 7 - nowDayIndex; // Days until next Sunday
+  } else if (cutoffDayIndex >= nowDayIndex) {
+    // Cutoff day is today or later in the week
+    daysUntilCutoffDay = cutoffDayIndex - nowDayIndex;
+  } else {
+    // Cutoff day was earlier this week (already passed)
+    // Calculate as negative (how many days ago)
+    daysUntilCutoffDay = -(nowDayIndex - cutoffDayIndex);
+  }
+
+  const cutoffDateThisWeek = new Date(now);
+  cutoffDateThisWeek.setDate(cutoffDateThisWeek.getDate() + daysUntilCutoffDay);
+  cutoffDateThisWeek.setHours(cutoffHour, cutoffMin, 0, 0);
+
+  // Check if this week's cutoff is still open
+  const cutoffIsStillOpen = now < cutoffDateThisWeek;
+
+  // Calculate delivery date
+  let deliveryDate;
+  if (cutoffIsStillOpen) {
+    // Cutoff is still open → use THIS WEEK's delivery
+    // Find how many days until delivery day
+    let daysUntilDelivery = (deliveryDayIndex - nowDayIndex + 7) % 7;
+    if (daysUntilDelivery === 0) {
+      // Delivery is today → use today (cutoff is open so orders can be placed)
+      daysUntilDelivery = 0;
+    }
+    deliveryDate = new Date(now);
+    deliveryDate.setDate(deliveryDate.getDate() + daysUntilDelivery);
+  } else {
+    // Cutoff is closed → use NEXT WEEK's delivery
+    let daysUntilDelivery = (deliveryDayIndex - nowDayIndex + 7) % 7;
+    // Add 7 days to get to NEXT week's occurrence
+    if (daysUntilDelivery === 0) {
+      daysUntilDelivery = 7;
+    } else {
+      daysUntilDelivery += 7;
+    }
+    deliveryDate = new Date(now);
+    deliveryDate.setDate(deliveryDate.getDate() + daysUntilDelivery);
+  }
+
+  // Set to midnight
+  deliveryDate.setHours(0, 0, 0, 0);
+
+  return deliveryDate;
+}
+
+/**
+ * DEPRECATED: This function was replaced by calculateNextAvailableDeliveryDate
+ * which properly handles cutoff logic instead of checking individual calendar dates.
+ * Kept for reference/history only.
+ *
+ * OLD ALGORITHM (BROKEN):
+ * - Iterated through calendar dates checking if each was a delivery day
+ * - Calculated cutoff deadline for each delivery date
+ * - Problem: Created gaps when cutoffs closed, didn't account for week boundaries properly
+ * - Result: Skipped available delivery dates, showed wrong dates
+ *
+ * Example of old bug:
+ * - Melbourne Wed delivery with Mon 14:00 cutoff
+ * - On Tuesday at 00:08, Monday's cutoff already passed
+ * - Old code: "This Wed isn't orderable (cutoff passed), skip to next Wed"
+ * - But it would calculate wrong next Wed date due to week boundary issues
+ */
+function calculateCutoffDeadlineDeprecated(deliveryDate, cutoffDay, cutoffTime) {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const cutoffDayIndex = dayNames.indexOf(cutoffDay);
   const deliveryDayIndex = deliveryDate.getDay();
 
-  // Calculate how many days back to go to reach the cutoff day
   let daysBack = deliveryDayIndex - cutoffDayIndex;
   if (daysBack <= 0) daysBack += 7;
 
-  // Create the cutoff date (same day as delivery but cutoffDay of week)
   const cutoffDate = new Date(deliveryDate);
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-
-  // Parse and apply the cutoff time (format: "HH:MM" in 24h)
   const [hours, minutes] = cutoffTime.split(':').map(Number);
   cutoffDate.setHours(hours, minutes, 0, 0);
 
