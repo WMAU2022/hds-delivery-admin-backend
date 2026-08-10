@@ -704,39 +704,76 @@ router.get('/delivery-options', async (req, res) => {
         console.log(`⏰ Region ${suburbRecord.region_id} cutoff time: ${cutoffTime}`);
         
         // Generate 6 upcoming delivery dates for this schedule
-        // Start by calculating the first available date, then add 7 days for each iteration
-        let currentDate = new Date(today);
-        console.log(`📅 Calculating dates for ${deliveryDayName} (schedule ${schedule.id})`);
-        console.log(`   Today: ${today.toISOString()}, Cutoff: ${cutoffDayName} ${cutoffTime}`);
+        const reverseDayMapLocal = {
+          'Sunday': 0,
+          'Monday': 1,
+          'Tuesday': 2,
+          'Wednesday': 3,
+          'Thursday': 4,
+          'Friday': 5,
+          'Saturday': 6,
+        };
         
+        const cutoffDayNum = reverseDayMapLocal[cutoffDayName];
+        const deliveryDayNum = reverseDayMapLocal[deliveryDayName];
+        const todayNum = today.getDay();
+        const todayHours = today.getHours();
+        const todayMinutes = today.getMinutes();
+        
+        // Parse cutoff time
+        const [cutoffHour, cutoffMin] = cutoffTime.split(':').map(Number);
+        const cutoffTimeInMinutes = cutoffHour * 60 + (cutoffMin || 0);
+        const nowTimeInMinutes = todayHours * 60 + todayMinutes;
+        
+        // Determine if CUTOFF IS OPEN (one time, for today only)
+        let cutoffIsOpen = false;
+        if (cutoffDayNum > todayNum) {
+          // Cutoff day is later this week
+          cutoffIsOpen = true;
+        } else if (cutoffDayNum === 0 && todayNum > 0) {
+          // Cutoff is Sunday, today is Mon-Sat → Sunday coming next week
+          cutoffIsOpen = true;
+        } else if (cutoffDayNum === todayNum) {
+          // Cutoff is today → check if time hasn't passed yet
+          cutoffIsOpen = (nowTimeInMinutes < cutoffTimeInMinutes);
+        } else {
+          // Cutoff day already passed this week
+          cutoffIsOpen = false;
+        }
+        
+        console.log(`⏰ Cutoff check (once): cutoff=${cutoffDayName}, today=${dayMap[todayNum]}, cutoffIsOpen=${cutoffIsOpen}`);
+        
+        // Calculate first delivery date
+        let firstDeliveryDate = new Date(today);
+        const daysUntilDelivery = (deliveryDayNum - todayNum + 7) % 7;
+        
+        if (cutoffIsOpen) {
+          // Cutoff still open: use this week's delivery if it's coming, else next week
+          if (daysUntilDelivery === 0) {
+            // Delivery day is today - use next week (7 days away)
+            firstDeliveryDate.setDate(firstDeliveryDate.getDate() + 7);
+          } else {
+            // Delivery day is coming later this week
+            firstDeliveryDate.setDate(firstDeliveryDate.getDate() + daysUntilDelivery);
+          }
+        } else {
+          // Cutoff closed: always use next week
+          firstDeliveryDate.setDate(firstDeliveryDate.getDate() + daysUntilDelivery + 7);
+        }
+        
+        firstDeliveryDate.setHours(0, 0, 0, 0);
+        
+        console.log(`📅 Calculating dates for ${deliveryDayName} (schedule ${schedule.id})`);
+        console.log(`   First delivery: ${firstDeliveryDate.toDateString()}`);
+        
+        // Now generate 6 deliveries starting from firstDeliveryDate, +7 days each
         for (let i = 0; i < 6; i++) {
-          let deliveryDate;
-          try {
-            deliveryDate = calculateNextDeliveryDate(
-              currentDate,
-              cutoffDayName,
-              packDayName,
-              deliveryDayName,
-              cutoffTime  // Pass cutoff time for proper cutoff checking
-            );
-          } catch (calcError) {
-            console.error(`Error in calculateNextDeliveryDate: ${calcError.message}`);
-            break;  // Exit loop if calculation fails
-          }
+          const deliveryDate = new Date(firstDeliveryDate);
+          deliveryDate.setDate(deliveryDate.getDate() + (i * 7));
           
-          if (!deliveryDate) {
-            console.warn(`   Iteration ${i}: calculateNextDeliveryDate returned null/undefined`);
-            break;
-          }
+          console.log(`   Iteration ${i}: ${deliveryDate.toDateString()}`);
           
-          console.log(`   Iteration ${i}: returned ${deliveryDate.toDateString()}`);
-          
-          // Use the delivery date directly (NO +1 offset)
           const deliveryDateStr = `${deliveryDate.getFullYear()}-${String(deliveryDate.getMonth()+1).padStart(2,'0')}-${String(deliveryDate.getDate()).padStart(2,'0')}`;
-          
-          // Move to the next week for the next iteration
-          currentDate = new Date(deliveryDate);
-          currentDate.setDate(currentDate.getDate() + 7);
 
           // Skip if date is blackout
           const isBlackout = await checkBlackoutDate(suburb.region_id, deliveryDate);
