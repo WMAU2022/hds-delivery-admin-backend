@@ -726,18 +726,23 @@ router.get('/delivery-options', async (req, res) => {
         const nowTimeInMinutes = todayHours * 60 + todayMinutes;
         
         // Determine if CUTOFF IS OPEN (one time, for today only)
+        // "Open" means: this week's cutoff hasn't passed yet, so we can still order
         let cutoffIsOpen = false;
+        
         if (cutoffDayNum > todayNum) {
-          // Cutoff day is later this week
-          cutoffIsOpen = true;
-        } else if (cutoffDayNum === 0 && todayNum > 0) {
-          // Cutoff is Sunday, today is Mon-Sat → Sunday coming next week
+          // Cutoff day comes LATER this week (e.g., today=Mon cutoff=Thu)
+          // Example: today=Mon(1) cutoff=Fri(5) → 5>1 → cutoff coming
           cutoffIsOpen = true;
         } else if (cutoffDayNum === todayNum) {
-          // Cutoff is today → check if time hasn't passed yet
+          // Cutoff is TODAY
+          // Example: today=Wed(3) cutoff=Wed(3) at 11 PM, current time 01:00 → passed
           cutoffIsOpen = (nowTimeInMinutes < cutoffTimeInMinutes);
         } else {
-          // Cutoff day already passed this week
+          // Cutoff day is EARLIER or SAME day number but passed
+          // Examples:
+          //   today=Fri(5), cutoff=Mon(1) → 1<5 → Mon already passed
+          //   today=Tue(2), cutoff=Sun(0) → 0<2 → Sunday already passed
+          // For both, THIS WEEK's cutoff is closed
           cutoffIsOpen = false;
         }
         
