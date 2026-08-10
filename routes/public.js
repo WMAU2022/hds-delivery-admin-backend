@@ -594,7 +594,7 @@ router.get('/delivery-options', async (req, res) => {
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     console.log(`\n=== DELIVERY OPTIONS DEBUG ===`);
     console.log(`UTC Now: ${utcNow.toISOString()}`);
-    console.log(`Sydney Now (UTC+10): ${sydneyNow.toISOString()}`);
+    console.log(`Sydney Time (UTC+10): ${sydneyUTCYear}-${String(sydneyUTCMonth+1).padStart(2,'0')}-${String(sydneyUTCDate).padStart(2,'0')} ${sydneyTimeStr}`);
     console.log(`Day: ${dayMap[today.getDay()]}, Time: ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`);
     console.log(`Postcode: ${postcode}, Suburb: ${suburb}`);
     const options = [];
