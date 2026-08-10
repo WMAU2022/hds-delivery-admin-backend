@@ -624,13 +624,25 @@ router.get('/delivery-options', async (req, res) => {
         console.log(`   Today: ${today.toISOString()}, Cutoff: ${cutoffDayName} ${cutoffTime}`);
         
         for (let i = 0; i < 6; i++) {
-          const deliveryDate = calculateNextDeliveryDate(
-            currentDate,
-            cutoffDayName,
-            packDayName,
-            deliveryDayName,
-            cutoffTime  // Pass cutoff time for proper cutoff checking
-          );
+          let deliveryDate;
+          try {
+            deliveryDate = calculateNextDeliveryDate(
+              currentDate,
+              cutoffDayName,
+              packDayName,
+              deliveryDayName,
+              cutoffTime  // Pass cutoff time for proper cutoff checking
+            );
+          } catch (calcError) {
+            console.error(`Error in calculateNextDeliveryDate: ${calcError.message}`);
+            break;  // Exit loop if calculation fails
+          }
+          
+          if (!deliveryDate) {
+            console.warn(`   Iteration ${i}: calculateNextDeliveryDate returned null/undefined`);
+            break;
+          }
+          
           console.log(`   Iteration ${i}: returned ${deliveryDate.toDateString()}`);
           
           // Format delivery date - add 1 day to compensate for timezone offset
