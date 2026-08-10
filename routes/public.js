@@ -569,14 +569,15 @@ router.get('/delivery-options', async (req, res) => {
 
     // 4. Calculate available delivery dates + pack dates
     // CRITICAL: Use Sydney timezone (Australia/Sydney), not server timezone
+    // Sydney is UTC+10 (or UTC+11 during daylight savings)
     const utcNow = new Date();
-    const sydneyNow = new Date(utcNow.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000)); // Add 10 hours for Sydney
     const today = sydneyNow;
     
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     console.log(`\n=== DELIVERY OPTIONS DEBUG ===`);
     console.log(`UTC Now: ${utcNow.toISOString()}`);
-    console.log(`Sydney Now: ${sydneyNow.toISOString()}`);
+    console.log(`Sydney Now (UTC+10): ${sydneyNow.toISOString()}`);
     console.log(`Day: ${dayMap[today.getDay()]}, Time: ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`);
     console.log(`Postcode: ${postcode}, Suburb: ${suburb}`);
     const options = [];
@@ -741,10 +742,11 @@ router.get('/delivery-options', async (req, res) => {
  * 4. If cutoff day already passed → skip to next week
  */
 function calculateNextDeliveryDate(today, cutoffDay, packDay, deliveryDay, cutoffTime = '14:00') {
-  // Ensure today is in Sydney timezone for accurate cutoff checks
-  if (!today._sydneyVerified) {
-    console.warn('⚠️ calculateNextDeliveryDate called with non-verified timezone. Converting to Sydney time.');
-    today = new Date(today.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  // today should already be in Sydney time
+  // If it's UTC, add 10 hours
+  if (today.getUTCHours !== undefined && today.getUTCHours() !== today.getHours()) {
+    // Looks like UTC, convert to Sydney
+    today = new Date(today.getTime() + (10 * 60 * 60 * 1000));
   }
   const reverseDayMap = {
     Sunday: 0,
@@ -890,7 +892,7 @@ router.get('/debug/thursday-calc', async (req, res) => {
   try {
     // Simulate the exact calculation
     const utcNow = new Date();
-    const sydneyNow = new Date(utcNow.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const sydneyNow = new Date(utcNow.getTime() + (10 * 60 * 60 * 1000)); // Add 10 hours for Sydney UTC+10
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     const output = {
