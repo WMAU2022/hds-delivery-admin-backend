@@ -865,4 +865,32 @@ function getDayName(dayNum) {
   return days[dayNum] || days[0];
 }
 
+/**
+ * FIX ENDPOINT: Update Thursday schedule start_date to Aug 13
+ * This is a one-time fix for the Thursday delivery schedule
+ */
+router.post('/fix-thursday-schedule', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE delivery_schedules 
+       SET start_date = '2026-08-13'::date
+       WHERE id = 7 AND region_id = 1`,
+    );
+    
+    console.log('✅ Updated Thursday schedule start_date to 2026-08-13');
+    
+    return res.json({
+      success: true,
+      message: 'Thursday schedule start_date updated to Aug 13',
+      rows_affected: result.rowCount
+    });
+  } catch (error) {
+    console.error('Fix error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
