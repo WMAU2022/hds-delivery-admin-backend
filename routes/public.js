@@ -671,9 +671,12 @@ router.get('/delivery-options', async (req, res) => {
           // Format cutoff time for display (e.g., "23:00" → "11 PM", "14:00" → "2 PM")
           const displayCutoffTime = formatCutoffTime(cutoffTime);
           
+          // Calculate actual day name from the calculated deliveryDate (not from schedule)
+          const actualDeliveryDayName = dayMap[deliveryDate.getDay()];
+          
           options.push({
             schedule_id: schedule.id,
-            delivery_day: deliveryDayName,
+            delivery_day: actualDeliveryDayName,  // Use ACTUAL day from date calculation
             delivery_window: schedule.hours || 'Standard Hours',
             cutoff_info: `${cutoffDayName} ${displayCutoffTime}`,
             delivery_date: deliveryDateStr,
