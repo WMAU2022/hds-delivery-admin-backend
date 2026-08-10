@@ -866,38 +866,36 @@ function getDayName(dayNum) {
 }
 
 /**
- * FIX ENDPOINT: Inspect Thursday schedule and fix it
+ * FIX ENDPOINT: Check what cutoff_time is set for region 1
  */
 router.post('/fix-thursday-schedule', async (req, res) => {
   try {
-    // First, get the Thursday schedule to see what columns it has
+    // Get the region
+    const region = await pool.query(
+      `SELECT * FROM regions WHERE id = 1`
+    );
+    
+    if (region.rows.length === 0) {
+      return res.json({ error: 'Region not found' });
+    }
+    
+    const reg = region.rows[0];
+    console.log('Region 1:', reg);
+    
+    // Get the Thursday schedule
     const sched = await pool.query(
       `SELECT * FROM delivery_schedules WHERE id = 7 AND region_id = 1`
     );
     
-    if (sched.rows.length === 0) {
-      return res.json({ error: 'Thursday schedule not found' });
-    }
-    
-    const schedule = sched.rows[0];
-    console.log('Current Thursday schedule:', schedule);
-    
-    // The issue: calculate first delivery date for Thursday with Mon 11pm cutoff
-    // Mon 21:18 < Mon 23:00 → use this week → Thu Aug 13
-    // But the API returns Aug 20
-    // This means the schedule.delivery_dates or similar column might be filtering
-    
-    // Let's check what's in the schedule
     return res.json({
-      schedule,
-      columns: Object.keys(schedule)
+      region: reg,
+      schedule: sched.rows[0],
+      region_columns: Object.keys(reg),
+      region_cutoff_time: reg.cutoff_time
     });
   } catch (error) {
-    console.error('Inspect error:', error.message);
-    return res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('Error:', error.message);
+    return res.status(500).json({ error: error.message });
   }
 });
 
