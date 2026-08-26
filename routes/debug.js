@@ -46,16 +46,16 @@ router.post('/insert-central-coast', async (req, res) => {
     const regionId = regionResult.rows[0].id;
     console.log(`✅ Region created: NSW Central Coast (ID: ${regionId})`);
 
-    // First check: How many suburbs have these postcodes?
+    // Check: postcodes are varchar, so cast to integer for range comparison
     const checkResult = await pool.query(
-      `SELECT COUNT(*) as count FROM suburbs WHERE postcode IN ('2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258')`
+      `SELECT COUNT(*) as count FROM suburbs WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258`
     );
     const matchingCount = parseInt(checkResult.rows[0].count || 0);
-    console.log(`DEBUG: Found ${matchingCount} suburbs with Central Coast postcodes`);
+    console.log(`DEBUG: Found ${matchingCount} suburbs with Central Coast postcodes (2250-2258)`);
     
-    // Update Central Coast postcodes (2250-2258)
+    // Update Central Coast postcodes using integer range after casting
     const result = await pool.query(
-      `UPDATE suburbs SET region_id = $1 WHERE postcode IN ('2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258')`,
+      `UPDATE suburbs SET region_id = $1 WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258`,
       [regionId]
     );
     
@@ -71,22 +71,22 @@ router.post('/insert-central-coast', async (req, res) => {
     );
     
     const verified = parseInt(verification.rows[0].count || 0);
-    console.log(`DEBUG: Region ${regionId} now contains ${verified} suburbs total`);
+    console.log(`DEBUG: Region ${regionId} now contains ${verified} suburbs total (should match ${matchingCount})`);
     
     res.json({
       success: true,
-      message: `NSW Central Coast ready. Moved ${updated} of ${matchingCount} Central Coast suburbs. Region total: ${verified}`,
+      message: `✅ NSW Central Coast ready. Moved ${updated} suburbs to region. Total Central Coast suburbs: ${verified}`,
       debugInfo: {
         matchingSuburbsFound: matchingCount,
-        updateCount: updated,
-        totalInRegion: verified
+        updatedCount: updated,
+        totalInRegionNow: verified,
+        queryMethod: 'CAST(postcode AS INTEGER) >= 2250 AND <= 2258'
       },
       regionId,
       suburbsUpdated: updated,
       postcodesUpdated: '2250-2258',
       debugMatched: matchingCount,
-      centralCoastSuburbsNow: verified,
-      updateCount: updated
+      centralCoastSuburbsNow: verified
     });
   } catch (error) {
     console.error('❌ Error:', error.message, error.stack);
