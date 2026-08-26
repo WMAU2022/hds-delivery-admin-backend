@@ -180,4 +180,30 @@ router.post('/force-central-coast-update', async (req, res) => {
   }
 });
 
+/**
+ * GET /debug/check-central-coast
+ * Direct database check - what's actually in region 29?
+ */
+router.get('/check-central-coast', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT name, postcode, region_id FROM suburbs WHERE postcode IN ('2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258') LIMIT 15`
+    );
+    
+    const region29Count = result.rows.filter(r => r.region_id === 29).length;
+    const region1Count = result.rows.filter(r => r.region_id === 1).length;
+    
+    res.json({
+      success: true,
+      query: 'SELECT * FROM suburbs WHERE postcode IN (Central Coast postcodes)',
+      samplesFound: result.rows.length,
+      region29: region29Count,
+      region1: region1Count,
+      samples: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
