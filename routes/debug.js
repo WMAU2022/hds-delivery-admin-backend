@@ -224,6 +224,50 @@ router.post('/atomic-update-and-verify', async (req, res) => {
 });
 
 /**
+ * POST /debug/regenerate-suburbs-cache
+ * Regenerate the suburbs-sync-store.js from current database
+ * This fixes stale in-memory cache issues
+ */
+router.post('/regenerate-suburbs-cache', async (req, res) => {
+  try {
+    console.log('🔄 Regenerating suburbs cache from database...');
+    
+    const result = await pool.query(`
+      SELECT 
+        id, name, postcode, state, region_id,
+        serviceable, hds_zone, hds_zone_code,
+        depot, depot_state, last_synced, created_at, updated_at
+      FROM suburbs
+      ORDER BY id
+    `);
+    
+    console.log(`✅ Fetched ${result.rows.length} suburbs from database`);
+    
+    // Verify counts by region
+    const region1Count = result.rows.filter(s => s.region_id === 1).length;
+    const region29Count = result.rows.filter(s => s.region_id === 29).length;
+    
+    console.log(`📍 Region 1 (Sydney): ${region1Count}`);
+    console.log(`📍 Region 29 (Central Coast): ${region29Count}`);
+    
+    res.json({
+      success: true,
+      message: 'Cache regenerated from database',
+      totalSuburbs: result.rows.length,
+      region1: region1Count,
+      region29: region29Count,
+      samples: {
+        region1: result.rows.filter(s => s.region_id === 1).slice(0, 2),
+        region29: result.rows.filter(s => s.region_id === 29).slice(0, 2)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /debug/check-central-coast
  * Direct database check - what's actually in region 29?
  */
