@@ -293,28 +293,10 @@ router.get('/check-central-coast', async (req, res) => {
 });
 
 /**
- * POST /debug/fix-stale-cache-restart
- * The only way to clear the cached in-memory suburbs store is to restart the process
- * This endpoint will cause the process to exit, triggering a Railway restart
- */
-router.post('/fix-stale-cache-restart', async (req, res) => {
-  try {
-    console.log('🔄 Triggering process restart to clear in-memory cache...');
-    res.json({ success: true, message: 'Process restarting to clear cache...' });
-    setTimeout(() => {
-      console.log('💣 Exiting process to trigger Railway restart');
-      process.exit(0);
-    }, 100);
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
  * GET /debug/diagnose-central-coast
  * Show exactly what's in the database for CC postcodes
  */
-router.get('/debug/diagnose-central-coast', async (req, res) => {
+router.get('/diagnose-central-coast', async (req, res) => {
   try {
     const postcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
     
