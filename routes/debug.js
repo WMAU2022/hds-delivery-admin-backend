@@ -79,33 +79,43 @@ router.post('/insert-central-coast', async (req, res) => {
     const centralCoastRegionId = regionResult.rows[0].id;
     console.log(`✅ NSW Central Coast region CREATED (ID: ${centralCoastRegionId})`);
 
-    // Update all Central Coast postcodes
-    const centralCoastPostcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
+    // Update all Central Coast postcodes (try both string and integer formats)
+    const centralCoastPostcodes = [2250, 2251, 2252, 2253, 2254, 2255, 2256, 2257, 2258];
     
     let totalUpdated = 0;
     for (const postcode of centralCoastPostcodes) {
-      const result = await pool.query(
+      // Try as integer first
+      let result = await pool.query(
         'UPDATE suburbs SET region_id = $1 WHERE postcode = $2',
         [centralCoastRegionId, postcode]
       );
+      
+      // If no rows updated, try as string
+      if (result.rowCount === 0) {
+        result = await pool.query(
+          'UPDATE suburbs SET region_id = $1 WHERE postcode::text = $2',
+          [centralCoastRegionId, postcode.toString()]
+        );
+      }
+      
       totalUpdated += result.rowCount || 0;
     }
 
-    // Verify
+    // Verify - count suburbs in the Central Coast region now
     const verification = await pool.query(
-      'SELECT COUNT(*) as count FROM suburbs WHERE region_id = $1',
+      'SELECT COUNT(*) as count FROM suburbs WHERE region_id = $1 AND postcode::text IN (\'2250\', \'2251\', \'2252\', \'2253\', \'2254\', \'2255\', \'2256\', \'2257\', \'2258\')',
       [centralCoastRegionId]
     );
 
-    const finalCount = verification.rows[0].count;
-    console.log(`✅ Verification: ${finalCount} suburbs in Central Coast region`);
+    const finalCount = verification.rows[0].count || 0;
+    console.log(`✅ Verification: ${finalCount} Central Coast suburbs (2250-2258) mapped to region ${centralCoastRegionId}`);
     
     res.json({
       success: true,
       message: 'NSW Central Coast region created/updated successfully',
       regionId: centralCoastRegionId,
       suburbsUpdated: totalUpdated,
-      suburbsVerified: finalCount
+      suburbsVerified: parseInt(finalCount)
     });
   } catch (error) {
     console.error('❌ DEBUG: Error inserting Central Coast:', error.message);
