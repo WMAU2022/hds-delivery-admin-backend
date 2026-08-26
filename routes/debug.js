@@ -57,16 +57,23 @@ router.post('/insert-central-coast', async (req, res) => {
   try {
     console.log('🚀 DEBUG: Starting manual Central Coast insert...');
     
-    // First, delete any existing partial record
-    await pool.query('DELETE FROM regions WHERE name = $1', ['NSW Central Coast']);
-    console.log('Cleaned up any existing partial records');
+    // First, delete any existing record by name
+    const deleteResult = await pool.query('DELETE FROM regions WHERE name = $1', ['NSW Central Coast']);
+    if (deleteResult.rowCount > 0) {
+      console.log(`Deleted ${deleteResult.rowCount} existing Central Coast record(s)`);
+    }
     
-    // Insert NSW Central Coast region
+    // Get the next available ID by finding max + 1
+    const maxIdResult = await pool.query('SELECT MAX(id) as max_id FROM regions');
+    const nextId = (maxIdResult.rows[0].max_id || 0) + 1;
+    console.log(`Next available ID: ${nextId}`);
+    
+    // Insert NSW Central Coast region with explicit next ID
     const regionResult = await pool.query(
-      `INSERT INTO regions (name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      `INSERT INTO regions (id, name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
        RETURNING id`,
-      ['NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
+      [nextId, 'NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
     );
     
     const centralCoastRegionId = regionResult.rows[0].id;
