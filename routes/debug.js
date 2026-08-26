@@ -78,4 +78,58 @@ router.post('/update-central-coast-suburbs', async (req, res) => {
   }
 });
 
+/**
+ * POST /debug/force-central-coast-update
+ * Force update with transaction and detailed logging
+ */
+router.post('/force-central-coast-update', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    console.log('🔥 FORCE UPDATE: Starting transaction...');
+    
+    await client.query('BEGIN');
+    
+    // Count BEFORE
+    const beforeResult = await client.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258 AND region_id = 1`
+    );
+    const countInSydney = parseInt(beforeResult.rows[0].count || 0);
+    console.log(`BEFORE: ${countInSydney} suburbs in Sydney Metro (region 1) with postcodes 2250-2258`);
+    
+    // FORCE UPDATE - explicit transaction
+    const updateResult = await client.query(
+      `UPDATE suburbs SET region_id = 29 WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258`,
+      []
+    );
+    
+    const updated = updateResult.rowCount || 0;
+    console.log(`UPDATED: ${updated} suburbs`);
+    
+    // Count AFTER
+    const afterResult = await client.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258 AND region_id = 29`
+    );
+    const countInCC = parseInt(afterResult.rows[0].count || 0);
+    console.log(`AFTER: ${countInCC} suburbs in Central Coast (region 29)`);
+    
+    // Commit
+    await client.query('COMMIT');
+    console.log('✅ COMMITTED');
+    
+    res.json({
+      success: true,
+      message: `Moved ${updated} suburbs from Sydney Metro to Central Coast`,
+      before: { sydneyCount: countInSydney },
+      after: { centralCoastCount: countInCC },
+      updated: updated
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ ERROR:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
