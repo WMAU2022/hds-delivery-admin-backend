@@ -47,24 +47,15 @@ router.post('/insert-central-coast', async (req, res) => {
     console.log(`✅ Region created: NSW Central Coast (ID: ${regionId})`);
 
     // Update Central Coast postcodes (2250-2258)
-    // Try integer range first
-    let result = await pool.query(
-      `UPDATE suburbs SET region_id = $1 WHERE postcode >= 2250 AND postcode <= 2258`,
+    // postcode is stored as varchar, so use string comparison
+    const result = await pool.query(
+      `UPDATE suburbs SET region_id = $1 WHERE postcode >= '2250' AND postcode <= '2258'`,
       [regionId]
     );
     
-    let updated = result.rowCount || 0;
-    
-    // If no match, try string range
-    if (updated === 0) {
-      result = await pool.query(
-        `UPDATE suburbs SET region_id = $1 WHERE CAST(postcode AS TEXT) >= '2250' AND CAST(postcode AS TEXT) <= '2258'`,
-        [regionId]
-      );
-      updated = result.rowCount || 0;
-    }
+    const updated = result.rowCount || 0;
 
-    console.log(`✅ Updated ${updated} suburbs to Central Coast`);
+    console.log(`✅ Updated ${updated} suburbs (postcodes 2250-2258) to Central Coast`);
 
     // Verify final count
     const verification = await pool.query(
@@ -76,13 +67,14 @@ router.post('/insert-central-coast', async (req, res) => {
     
     res.json({
       success: true,
-      message: `NSW Central Coast region ready. ${updated} suburbs updated. Total in region: ${verified}`,
+      message: `NSW Central Coast region ready. ${updated} Central Coast suburbs (2250-2258) updated. Total in region: ${verified}`,
       regionId,
       suburbsUpdated: updated,
-      suburbsInRegion: verified
+      postcodesUpdated: '2250-2258',
+      centralCoastSuburbsNow: verified
     });
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error:', error.message, error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
