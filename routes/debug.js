@@ -181,6 +181,49 @@ router.post('/force-central-coast-update', async (req, res) => {
 });
 
 /**
+ * POST /debug/atomic-update-and-verify
+ * Update AND verify in same transaction - proves if update actually happened
+ */
+router.post('/atomic-update-and-verify', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    console.log('🔄 Starting atomic update + verify...');
+    await client.query('BEGIN');
+    
+    // UPDATE
+    const updateResult = await client.query(
+      `UPDATE suburbs SET region_id = 29 WHERE postcode = ANY($1)`,
+      [['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258']]
+    );
+    console.log(`Updated: ${updateResult.rowCount} rows`);
+    
+    // VERIFY immediately after in same transaction
+    const verifyResult = await client.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE postcode = ANY($1) AND region_id = 29`,
+      [['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258']]
+    );
+    const verifyCount = parseInt(verifyResult.rows[0].count || 0);
+    console.log(`Verified: ${verifyCount} in region 29`);
+    
+    await client.query('COMMIT');
+    console.log('✅ Committed');
+    
+    res.json({
+      success: true,
+      updated: updateResult.rowCount,
+      verified: verifyCount,
+      match: updateResult.rowCount === verifyCount
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+/**
  * GET /debug/check-central-coast
  * Direct database check - what's actually in region 29?
  */
