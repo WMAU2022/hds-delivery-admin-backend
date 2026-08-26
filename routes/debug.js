@@ -46,17 +46,21 @@ router.post('/insert-central-coast', async (req, res) => {
     const regionId = regionResult.rows[0].id;
     console.log(`✅ Region created: NSW Central Coast (ID: ${regionId})`);
 
-    // Update Central Coast postcodes (2250-2258)
-    // postcode is stored as varchar
-    const postcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
+    // First check: How many suburbs have these postcodes?
+    const checkResult = await pool.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE postcode IN ('2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258')`
+    );
+    const matchingCount = parseInt(checkResult.rows[0].count || 0);
+    console.log(`DEBUG: Found ${matchingCount} suburbs with Central Coast postcodes`);
     
-    // Try with IN clause (most reliable for string matching)
+    // Update Central Coast postcodes (2250-2258)
     const result = await pool.query(
       `UPDATE suburbs SET region_id = $1 WHERE postcode IN ('2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258')`,
       [regionId]
     );
     
     const updated = result.rowCount || 0;
+    console.log(`DEBUG: UPDATE statement updated ${updated} rows`);
 
     console.log(`✅ Updated ${updated} suburbs (postcodes 2250-2258) to Central Coast region ${regionId}`);
 
@@ -67,14 +71,22 @@ router.post('/insert-central-coast', async (req, res) => {
     );
     
     const verified = parseInt(verification.rows[0].count || 0);
+    console.log(`DEBUG: Region ${regionId} now contains ${verified} suburbs total`);
     
     res.json({
       success: true,
-      message: `NSW Central Coast ready. ${updated} suburbs moved to region. Total Central Coast suburbs: ${verified}`,
+      message: `NSW Central Coast ready. Moved ${updated} of ${matchingCount} Central Coast suburbs. Region total: ${verified}`,
+      debugInfo: {
+        matchingSuburbsFound: matchingCount,
+        updateCount: updated,
+        totalInRegion: verified
+      },
       regionId,
       suburbsUpdated: updated,
       postcodesUpdated: '2250-2258',
-      centralCoastSuburbsNow: verified
+      debugMatched: matchingCount,
+      centralCoastSuburbsNow: verified,
+      updateCount: updated
     });
   } catch (error) {
     console.error('❌ Error:', error.message, error.stack);
