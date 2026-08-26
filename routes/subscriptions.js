@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../lib/db');
+const pool = require('../lib/db-auto');
 const { calculateOffsetFromSchedule, calculateNextDeliveryDate } = require('../lib/offset-calculator');
 
 /**

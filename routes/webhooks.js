@@ -154,7 +154,7 @@ async function updateLineItemsWithDeliveryData(orderId, hdsData) {
 // Enrich order with HDS delivery data from note_attributes
 async function enrichOrderWithHDSData(order) {
   try {
-    const pool = require('../lib/db');
+    const pool = require('../lib/db-auto');
     
     // Extract basic delivery info from note_attributes
     let deliveryDate = null;
@@ -421,7 +421,7 @@ router.post('/shopify/orders/create', async (req, res) => {
       
       // Queue the order for background enrichment (handles rate limits & volume)
       try {
-        const database = require('../lib/db');
+        const database = require('../lib/db-auto');
         await database.query(
           `INSERT INTO orders_to_enrich (order_id, delivery_date, delivery_location_id, delivery_time, status) 
            VALUES ($1, $2, $3, $4, $5)
@@ -455,7 +455,7 @@ router.post('/shopify/orders/create', async (req, res) => {
  * Handles offset calculation and HDS delivery data attachment
  */
 router.post('/loop/order-created', async (req, res) => {
-  const pool = require('../lib/db');
+  const pool = require('../lib/db-auto');
   const { calculateNextDeliveryDate } = require('../lib/offset-calculator');
 
   // Acknowledge immediately (Loop expects 200 quickly)

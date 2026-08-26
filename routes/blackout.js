@@ -1,5 +1,5 @@
 const express = require('express');
-const pool = require('../lib/db');
+const pool = require('../lib/db-auto');
 
 const router = express.Router();
 

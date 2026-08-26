@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../lib/db');
+const pool = require('../lib/db-auto');
 const store = require('../lib/memory-store');
 
 // Day name to number mapping (0 = Sunday, 1 = Monday, etc.)

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const regionsStore = require('../lib/regions-store');
-const pool = require('../lib/db');
+const pool = require('../lib/db-auto');
 
 const REVERSE_DAY_MAP = {
   0: 'Sunday',
