@@ -47,15 +47,18 @@ router.post('/insert-central-coast', async (req, res) => {
     console.log(`✅ Region created: NSW Central Coast (ID: ${regionId})`);
 
     // Update Central Coast postcodes (2250-2258)
-    // postcode is stored as varchar, so use string comparison
+    // postcode is stored as varchar
+    const postcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
+    
+    // Try with IN clause (most reliable for string matching)
     const result = await pool.query(
-      `UPDATE suburbs SET region_id = $1 WHERE postcode >= '2250' AND postcode <= '2258'`,
+      `UPDATE suburbs SET region_id = $1 WHERE postcode IN ('2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258')`,
       [regionId]
     );
     
     const updated = result.rowCount || 0;
 
-    console.log(`✅ Updated ${updated} suburbs (postcodes 2250-2258) to Central Coast`);
+    console.log(`✅ Updated ${updated} suburbs (postcodes 2250-2258) to Central Coast region ${regionId}`);
 
     // Verify final count
     const verification = await pool.query(
@@ -67,7 +70,7 @@ router.post('/insert-central-coast', async (req, res) => {
     
     res.json({
       success: true,
-      message: `NSW Central Coast region ready. ${updated} Central Coast suburbs (2250-2258) updated. Total in region: ${verified}`,
+      message: `NSW Central Coast ready. ${updated} suburbs moved to region. Total Central Coast suburbs: ${verified}`,
       regionId,
       suburbsUpdated: updated,
       postcodesUpdated: '2250-2258',
