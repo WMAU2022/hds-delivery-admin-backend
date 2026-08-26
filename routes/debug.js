@@ -79,6 +79,54 @@ router.post('/update-central-coast-suburbs', async (req, res) => {
 });
 
 /**
+ * POST /debug/simple-string-update
+ * Update using simple string postcode matching (no casting)
+ */
+router.post('/simple-string-update', async (req, res) => {
+  try {
+    console.log('🔥 Simple string-based update...');
+    
+    // List of postcodes as strings
+    const postcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
+    
+    // Count before
+    const beforeResult = await pool.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE postcode = ANY($1) AND region_id = 1`,
+      [postcodes]
+    );
+    const countBefore = parseInt(beforeResult.rows[0].count || 0);
+    console.log(`BEFORE: ${countBefore} suburbs in region 1`);
+    
+    // Update
+    const updateResult = await pool.query(
+      `UPDATE suburbs SET region_id = 29 WHERE postcode = ANY($1)`,
+      [postcodes]
+    );
+    const updated = updateResult.rowCount || 0;
+    console.log(`UPDATED: ${updated} rows`);
+    
+    // Count after
+    const afterResult = await pool.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE postcode = ANY($1) AND region_id = 29`,
+      [postcodes]
+    );
+    const countAfter = parseInt(afterResult.rows[0].count || 0);
+    console.log(`AFTER: ${countAfter} suburbs in region 29`);
+    
+    res.json({
+      success: true,
+      message: `Updated ${updated} suburbs`,
+      before: countBefore,
+      after: countAfter,
+      method: 'postcode = ANY(array)'
+    });
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /debug/force-central-coast-update
  * Force update with transaction and detailed logging
  */
