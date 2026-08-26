@@ -5,28 +5,25 @@
 
 async function addCentralCoastRegion(pool) {
   try {
-    // Step 1: Insert NSW Central Coast region
-    const regionCheck = await pool.query(
-      'SELECT id FROM regions WHERE name = $1',
-      ['NSW Central Coast']
+    console.log('🚀 Central Coast migration starting...');
+    
+    // Step 1: Insert or update NSW Central Coast region
+    // Use ON CONFLICT to handle case where it already partially exists
+    const regionResult = await pool.query(
+      `INSERT INTO regions (name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       ON CONFLICT (name) DO UPDATE SET 
+         hds_zone = EXCLUDED.hds_zone,
+         code = EXCLUDED.code,
+         location = EXCLUDED.location,
+         cutoff_time = EXCLUDED.cutoff_time,
+         updated_at = NOW()
+       RETURNING id`,
+      ['NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
     );
-
-    let centralCoastRegionId;
-
-    if (regionCheck.rows.length === 0) {
-      // Region doesn't exist, create it with all required columns
-      const insertResult = await pool.query(
-        `INSERT INTO regions (name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-         RETURNING id`,
-        ['NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
-      );
-      centralCoastRegionId = insertResult.rows[0].id;
-      console.log(`✅ Created region: NSW Central Coast (ID: ${centralCoastRegionId})`);
-    } else {
-      centralCoastRegionId = regionCheck.rows[0].id;
-      console.log(`ℹ️  NSW Central Coast region already exists (ID: ${centralCoastRegionId})`);
-    }
+    
+    const centralCoastRegionId = regionResult.rows[0].id;
+    console.log(`✅ NSW Central Coast region ready (ID: ${centralCoastRegionId})`);
 
     // Step 2: Update all Central Coast postcodes to the new region
     const centralCoastPostcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
@@ -39,9 +36,6 @@ async function addCentralCoastRegion(pool) {
       );
       
       totalUpdated += result.rowCount || 0;
-      if (result.rowCount > 0) {
-        console.log(`  ✅ Updated ${result.rowCount} suburbs with postcode ${postcode}`);
-      }
     }
 
     // Step 3: Verify the update
@@ -50,13 +44,11 @@ async function addCentralCoastRegion(pool) {
       [centralCoastRegionId]
     );
 
-    console.log(`\n✅ Migration complete!`);
-    console.log(`   - NSW Central Coast region created (ID: ${centralCoastRegionId})`);
-    console.log(`   - ${totalUpdated} suburbs updated to Central Coast`);
-    console.log(`   - Total verification: ${verification.rows[0].count} suburbs in Central Coast region`);
+    const finalCount = verification.rows[0].count;
+    console.log(`✅ Central Coast migration complete! ${finalCount} suburbs mapped to region ${centralCoastRegionId}`);
   } catch (err) {
-    console.error('❌ Error adding Central Coast region:', err.message);
-    throw err;
+    console.error('❌ Error in Central Coast migration:', err.message);
+    // Don't throw - let server continue if migration fails
   }
 }
 
