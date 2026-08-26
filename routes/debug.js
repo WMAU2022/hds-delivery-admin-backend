@@ -292,4 +292,35 @@ router.get('/check-central-coast', async (req, res) => {
   }
 });
 
+/**
+ * GET /debug/diagnose-central-coast
+ * Show exactly what's in the database for CC postcodes
+ */
+router.get('/diagnose-central-coast', async (req, res) => {
+  try {
+    const postcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
+    
+    const result = await pool.query(
+      `SELECT name, postcode, region_id FROM suburbs WHERE postcode = ANY($1) ORDER BY postcode, name`,
+      [postcodes]
+    );
+    
+    const byRegion = {};
+    result.rows.forEach(row => {
+      if (!byRegion[row.region_id]) byRegion[row.region_id] = [];
+      byRegion[row.region_id].push(`${row.name} (${row.postcode})`);
+    });
+    
+    res.json({
+      success: true,
+      queryPostcodes: postcodes,
+      totalFound: result.rows.length,
+      byRegion: byRegion,
+      raw: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
