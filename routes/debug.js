@@ -21,75 +21,59 @@ router.get('/db-status', async (req, res) => {
 });
 
 /**
- * POST /debug/insert-central-coast
- * Manually insert NSW Central Coast region and update suburbs
+ * POST /debug/update-central-coast-suburbs
+ * Move Central Coast suburbs (2250-2258) to NSW Central Coast region (ID 29)
  */
-router.post('/insert-central-coast', async (req, res) => {
+router.post('/update-central-coast-suburbs', async (req, res) => {
   try {
-    console.log('🚀 Creating NSW Central Coast region...');
+    console.log('🚀 Updating Central Coast suburbs to region 29...');
     
-    // Delete any existing Central Coast record
-    await pool.query('DELETE FROM regions WHERE name = $1', ['NSW Central Coast']);
+    const regionId = 29; // NSW Central Coast
     
-    // Find next available ID
-    const maxIdResult = await pool.query('SELECT MAX(id) as max_id FROM regions');
-    const nextId = (maxIdResult.rows[0].max_id || 0) + 1;
-    
-    // Insert region
-    const regionResult = await pool.query(
-      `INSERT INTO regions (id, name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-       RETURNING id`,
-      [nextId, 'NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
-    );
-    
-    const regionId = regionResult.rows[0].id;
-    console.log(`✅ Region created: NSW Central Coast (ID: ${regionId})`);
-
-    // Check: postcodes are varchar, so cast to integer for range comparison
+    // Check: How many suburbs have Central Coast postcodes?
     const checkResult = await pool.query(
       `SELECT COUNT(*) as count FROM suburbs WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258`
     );
     const matchingCount = parseInt(checkResult.rows[0].count || 0);
-    console.log(`DEBUG: Found ${matchingCount} suburbs with Central Coast postcodes (2250-2258)`);
+    console.log(`Found ${matchingCount} suburbs with postcodes 2250-2258`);
     
-    // Update Central Coast postcodes using integer range after casting
-    const result = await pool.query(
+    // Update Central Coast postcodes to region 29
+    const updateResult = await pool.query(
       `UPDATE suburbs SET region_id = $1 WHERE CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258`,
       [regionId]
     );
     
-    const updated = result.rowCount || 0;
-    console.log(`DEBUG: UPDATE statement updated ${updated} rows`);
+    const updated = updateResult.rowCount || 0;
+    console.log(`✅ Updated ${updated} suburbs to region ${regionId}`);
 
-    console.log(`✅ Updated ${updated} suburbs (postcodes 2250-2258) to Central Coast region ${regionId}`);
-
-    // Verify final count
-    const verification = await pool.query(
+    // Verify final count in region 29
+    const verifyResult = await pool.query(
       'SELECT COUNT(*) as count FROM suburbs WHERE region_id = $1',
       [regionId]
     );
     
-    const verified = parseInt(verification.rows[0].count || 0);
-    console.log(`DEBUG: Region ${regionId} now contains ${verified} suburbs total (should match ${matchingCount})`);
+    const verified = parseInt(verifyResult.rows[0].count || 0);
+    console.log(`✅ Region ${regionId} now contains ${verified} total suburbs`);
+    
+    // Verify none remain in region 1
+    const sydneyCheckResult = await pool.query(
+      `SELECT COUNT(*) as count FROM suburbs WHERE region_id = 1 AND CAST(postcode AS INTEGER) >= 2250 AND CAST(postcode AS INTEGER) <= 2258`
+    );
+    const remainingInSydney = parseInt(sydneyCheckResult.rows[0].count || 0);
+    console.log(`✅ Suburbs remaining in Sydney Metro (region 1): ${remainingInSydney}`);
     
     res.json({
       success: true,
-      message: `✅ NSW Central Coast ready. Moved ${updated} suburbs to region. Total Central Coast suburbs: ${verified}`,
-      debugInfo: {
-        matchingSuburbsFound: matchingCount,
-        updatedCount: updated,
-        totalInRegionNow: verified,
-        queryMethod: 'CAST(postcode AS INTEGER) >= 2250 AND <= 2258'
-      },
-      regionId,
-      suburbsUpdated: updated,
-      postcodesUpdated: '2250-2258',
-      debugMatched: matchingCount,
-      centralCoastSuburbsNow: verified
+      message: `✅ Success! Moved ${updated} Central Coast suburbs to NSW Central Coast region. Remaining in Sydney: ${remainingInSydney}`,
+      stats: {
+        totalCentralCoastPostcodes: matchingCount,
+        suburbsMoved: updated,
+        totalInRegion29: verified,
+        remainingInSydney: remainingInSydney
+      }
     });
   } catch (error) {
-    console.error('❌ Error:', error.message, error.stack);
+    console.error('❌ Error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
