@@ -57,22 +57,20 @@ router.post('/insert-central-coast', async (req, res) => {
   try {
     console.log('🚀 DEBUG: Starting manual Central Coast insert...');
     
-    // Insert or update NSW Central Coast region
+    // First, delete any existing partial record
+    await pool.query('DELETE FROM regions WHERE name = $1', ['NSW Central Coast']);
+    console.log('Cleaned up any existing partial records');
+    
+    // Insert NSW Central Coast region
     const regionResult = await pool.query(
       `INSERT INTO regions (name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-       ON CONFLICT (name) DO UPDATE SET 
-         hds_zone = EXCLUDED.hds_zone,
-         code = EXCLUDED.code,
-         location = EXCLUDED.location,
-         cutoff_time = EXCLUDED.cutoff_time,
-         updated_at = NOW()
        RETURNING id`,
       ['NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
     );
     
     const centralCoastRegionId = regionResult.rows[0].id;
-    console.log(`✅ NSW Central Coast region created/updated (ID: ${centralCoastRegionId})`);
+    console.log(`✅ NSW Central Coast region CREATED (ID: ${centralCoastRegionId})`);
 
     // Update all Central Coast postcodes
     const centralCoastPostcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
