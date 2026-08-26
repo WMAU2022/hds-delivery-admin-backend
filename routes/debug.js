@@ -49,4 +49,67 @@ router.get('/db-status', async (req, res) => {
   }
 });
 
+/**
+ * POST /debug/insert-central-coast
+ * TEMPORARY: Manually insert NSW Central Coast region
+ */
+router.post('/insert-central-coast', async (req, res) => {
+  try {
+    console.log('🚀 DEBUG: Starting manual Central Coast insert...');
+    
+    // Insert or update NSW Central Coast region
+    const regionResult = await pool.query(
+      `INSERT INTO regions (name, hds_zone, code, location, cutoff_time, enabled, created_at, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       ON CONFLICT (name) DO UPDATE SET 
+         hds_zone = EXCLUDED.hds_zone,
+         code = EXCLUDED.code,
+         location = EXCLUDED.location,
+         cutoff_time = EXCLUDED.cutoff_time,
+         updated_at = NOW()
+       RETURNING id`,
+      ['NSW Central Coast', 'NSW Central Coast', 'CC', 'WOM', '23:00', true]
+    );
+    
+    const centralCoastRegionId = regionResult.rows[0].id;
+    console.log(`✅ NSW Central Coast region created/updated (ID: ${centralCoastRegionId})`);
+
+    // Update all Central Coast postcodes
+    const centralCoastPostcodes = ['2250', '2251', '2252', '2253', '2254', '2255', '2256', '2257', '2258'];
+    
+    let totalUpdated = 0;
+    for (const postcode of centralCoastPostcodes) {
+      const result = await pool.query(
+        'UPDATE suburbs SET region_id = $1 WHERE postcode = $2',
+        [centralCoastRegionId, postcode]
+      );
+      totalUpdated += result.rowCount || 0;
+    }
+
+    // Verify
+    const verification = await pool.query(
+      'SELECT COUNT(*) as count FROM suburbs WHERE region_id = $1',
+      [centralCoastRegionId]
+    );
+
+    const finalCount = verification.rows[0].count;
+    console.log(`✅ Verification: ${finalCount} suburbs in Central Coast region`);
+    
+    res.json({
+      success: true,
+      message: 'NSW Central Coast region created/updated successfully',
+      regionId: centralCoastRegionId,
+      suburbsUpdated: totalUpdated,
+      suburbsVerified: finalCount
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error inserting Central Coast:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      hint: 'Check that database is accessible and regions table exists'
+    });
+  }
+});
+
 module.exports = router;
