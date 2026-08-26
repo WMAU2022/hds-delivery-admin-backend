@@ -234,11 +234,10 @@ router.post('/regenerate-suburbs-cache', async (req, res) => {
     
     const result = await pool.query(`
       SELECT 
-        id, name, postcode, state, region_id,
-        serviceable, hds_zone, hds_zone_code,
-        depot, depot_state, last_synced, created_at, updated_at
+        id, name, postcode, state, region_id
       FROM suburbs
-      ORDER BY id
+      WHERE region_id IN (1, 29)
+      ORDER BY region_id, name
     `);
     
     console.log(`✅ Fetched ${result.rows.length} suburbs from database`);
