@@ -243,11 +243,13 @@ async function enrichOrderWithHDSData(order) {
     console.log(`📅 Delivery day number: ${deliveryDayNum}`);
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const deliveryDayName = dayMap[deliveryDayNum];
-    
+
     // Get schedule for this region and delivery day
+    // delivery_schedules.delivery_day is stored as a string (e.g. 'Thursday'),
+    // so query by name rather than numeric day index.
     const scheduleResult = await pool.query(
       `SELECT * FROM delivery_schedules WHERE region_id = $1 AND delivery_day = $2 AND enabled = true LIMIT 1`,
-      [regionId, deliveryDayNum]
+      [regionId, deliveryDayName]
     );
 
     if (scheduleResult.rows.length === 0) {
@@ -259,11 +261,22 @@ async function enrichOrderWithHDSData(order) {
     console.log(`📅 Found schedule: id=${schedule.id}, pack_day=${schedule.pack_day}, pack_day type=${typeof schedule.pack_day}`);
 
     // Calculate pack date from schedule
-    // Note: pack_day is stored in database as a NUMBER (0-6), not a string
-    const packDayNum = typeof schedule.pack_day === 'string' 
-      ? parseInt(schedule.pack_day) 
-      : schedule.pack_day;
-    
+    // pack_day in DB may be stored as a numeric value (0-6) or as a day name string.
+    // Normalize to a numeric day index.
+    const dayNameToIndex = {
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6,
+    };
+
+    let packDayNum;
+    if (typeof schedule.pack_day === 'number') {
+      packDayNum = schedule.pack_day;
+    } else if (typeof schedule.pack_day === 'string' && !isNaN(parseInt(schedule.pack_day, 10))) {
+      packDayNum = parseInt(schedule.pack_day, 10);
+    } else {
+      packDayNum = dayNameToIndex[String(schedule.pack_day)] ?? 0;
+    }
+
     const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
     console.log(`📅 Pack day number: ${packDayNum}, dayDifference=${dayDifference}`);
     

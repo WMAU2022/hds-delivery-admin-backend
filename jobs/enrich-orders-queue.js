@@ -202,11 +202,12 @@ async function enrichOrder(deliveryDate, deliveryLocationId, deliveryTime) {
     }
 
     // Find delivery schedule
+    // delivery_schedules.delivery_day is stored as a string (e.g. 'Thursday'), query by name.
     const scheduleResult = await pool.query(
       `SELECT * FROM delivery_schedules 
        WHERE region_id = $1 AND delivery_day = $2 AND enabled = true 
        LIMIT 1`,
-      [regionId, deliveryDayNum]
+      [regionId, deliveryDayName]
     );
 
     if (scheduleResult.rows.length === 0) {
@@ -214,9 +215,20 @@ async function enrichOrder(deliveryDate, deliveryLocationId, deliveryTime) {
     }
 
     const schedule = scheduleResult.rows[0];
-    const packDayNum = typeof schedule.pack_day === 'string' 
-      ? parseInt(schedule.pack_day) 
-      : schedule.pack_day;
+    // Normalize pack_day which may be stored as a numeric (0-6) or day name string
+    const dayNameToIndex = {
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6,
+    };
+
+    let packDayNum;
+    if (typeof schedule.pack_day === 'number') {
+      packDayNum = schedule.pack_day;
+    } else if (typeof schedule.pack_day === 'string' && !isNaN(parseInt(schedule.pack_day, 10))) {
+      packDayNum = parseInt(schedule.pack_day, 10);
+    } else {
+      packDayNum = dayNameToIndex[String(schedule.pack_day)] ?? 0;
+    }
 
     // Calculate pack and production dates
     const dayDifference = (deliveryDayNum - packDayNum + 7) % 7;
@@ -254,46 +266,65 @@ async function enrichOrder(deliveryDate, deliveryLocationId, deliveryTime) {
 
 /**
  * Sync enriched data to Shopify order note_attributes (non-blocking)
- * GraphQL API to avoid immutability issues with PUT requests
+ *
+ * IMPORTANT: Shopify's REST PUT /orders/{id}.json REPLACES the entire
+ * note_attributes array — it does not merge. The checkout extension already
+ * writes its own attributes (Delivery-Date, Delivery-Time, Pick-Pack-Date,
+ * HDS Pack Date, etc.) at checkout time, so we must fetch the order's
+ * current note_attributes and merge our hds_* keys into them here. Without
+ * this, this call wipes out every attribute the checkout wrote.
  */
 async function syncToShopifyAsync(orderId, enrichedData) {
   try {
     const shopifyToken = process.env.SHOPIFY_ADMIN_TOKEN;
     const shopifyStore = (process.env.SHOPIFY_STORE || '').replace(/\/$/, '');
-    
+
     if (!shopifyToken || !shopifyStore) {
       console.log('⚠️ Shopify creds missing, skipping sync');
       return;
     }
 
     const axios = require('axios');
-    
-    // Build note attributes as array of {name, value} objects
-    const noteAttributes = [
-      { name: 'hds_delivery_date', value: enrichedData.hds_delivery_date },
-      { name: 'hds_delivery_formatted', value: enrichedData.hds_delivery_formatted },
-      { name: 'hds_delivery_day', value: enrichedData.hds_delivery_day },
-      { name: 'hds_delivery_window', value: enrichedData.hds_delivery_window },
-      { name: 'hds_delivery_time', value: enrichedData.hds_delivery_time },
-      { name: 'hds_schedule_id', value: String(enrichedData.hds_schedule_id) },
-      { name: 'hds_pack_date', value: enrichedData.hds_pack_date },
-      { name: 'hds_production_date', value: enrichedData.hds_production_date },
-      { name: 'hds_region', value: enrichedData.hds_region },
-      { name: 'hds_suburb', value: enrichedData.hds_suburb },
-      { name: 'hds_postcode', value: enrichedData.hds_postcode },
-    ];
+    const apiBase = `https://${shopifyStore}/admin/api/2026-04/orders/${orderId}.json`;
+    const headers = {
+      'X-Shopify-Access-Token': shopifyToken,
+      'Content-Type': 'application/json',
+    };
 
-    // Use REST API PUT /orders/{id} with note_attributes
-    const response = await axios.put(
-      `https://${shopifyStore}/admin/api/2024-01/orders/${orderId}.json`,
-      { order: { note_attributes: noteAttributes } },
-      {
-        headers: {
-          'X-Shopify-Access-Token': shopifyToken,
-          'Content-Type': 'application/json',
-        },
-        timeout: 5000,
+    // Fetch the order's current note_attributes so we can merge into them
+    // instead of replacing the array outright.
+    const orderResponse = await axios.get(apiBase, { headers, timeout: 5000 });
+    const existingAttributes = orderResponse.data.order.note_attributes || [];
+
+    const hdsAttributes = {
+      hds_delivery_date: enrichedData.hds_delivery_date,
+      hds_delivery_formatted: enrichedData.hds_delivery_formatted,
+      hds_delivery_day: enrichedData.hds_delivery_day,
+      hds_delivery_window: enrichedData.hds_delivery_window,
+      hds_delivery_time: enrichedData.hds_delivery_time,
+      hds_schedule_id: String(enrichedData.hds_schedule_id),
+      hds_pack_date: enrichedData.hds_pack_date,
+      hds_production_date: enrichedData.hds_production_date,
+      hds_region: enrichedData.hds_region,
+      hds_suburb: enrichedData.hds_suburb,
+      hds_postcode: enrichedData.hds_postcode,
+    };
+
+    const mergedAttributes = existingAttributes.map((attr) => ({ ...attr }));
+    for (const [name, value] of Object.entries(hdsAttributes)) {
+      const existingIndex = mergedAttributes.findIndex((attr) => attr.name === name);
+      if (existingIndex >= 0) {
+        mergedAttributes[existingIndex].value = value;
+      } else {
+        mergedAttributes.push({ name, value });
       }
+    }
+
+    // Use REST API PUT /orders/{id} with the merged note_attributes
+    await axios.put(
+      apiBase,
+      { order: { note_attributes: mergedAttributes } },
+      { headers, timeout: 5000 }
     );
 
     console.log(`✅ Synced to Shopify #${orderId}`);

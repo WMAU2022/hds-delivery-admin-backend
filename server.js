@@ -494,18 +494,8 @@ app.listen(PORT, async () => {
   
   // Initialize HDS suburbs sync job (runs daily at 3 AM)
   hdsSuburbsSync.initSchedule();
-  console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)'); 
-  
-  // Initialize order enrichment queue processor (background job)
-  try {
-    queueProcessor.initQueueProcessor();
-  } catch (err) {
-    console.warn('⚠️ Queue processor init warning:', err.message);
-  }
-  
-  // Initialize order enrichment queue processor (also runs on startup)
-  console.log('🚀 Starting enrichment queue processor...');
-  
+  console.log('⏰ HDS suburbs sync scheduled (daily at 3 AM)');
+
   // If suburbs store is empty, load seed data
   let suburbStats = suburbsStore.getStats();
   if (suburbStats.total === 0) {
