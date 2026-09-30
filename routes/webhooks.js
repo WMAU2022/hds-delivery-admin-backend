@@ -438,11 +438,17 @@ router.post('/shopify/orders/create', async (req, res) => {
         await database.query(
           `INSERT INTO orders_to_enrich (order_id, delivery_date, delivery_location_id, delivery_time, status) 
            VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (order_id) DO UPDATE SET 
-             delivery_date = $2,
-             delivery_location_id = $3,
-             delivery_time = $4,
-             status = 'pending'`,
+           ON CONFLICT (order_id) DO UPDATE SET
+             delivery_date = EXCLUDED.delivery_date,
+             delivery_location_id = EXCLUDED.delivery_location_id,
+             delivery_time = EXCLUDED.delivery_time,
+             status = CASE
+               WHEN orders_to_enrich.delivery_date IS DISTINCT FROM EXCLUDED.delivery_date
+                 OR orders_to_enrich.delivery_location_id IS DISTINCT FROM EXCLUDED.delivery_location_id
+                 OR orders_to_enrich.delivery_time IS DISTINCT FROM EXCLUDED.delivery_time
+               THEN 'pending'
+               ELSE orders_to_enrich.status
+             END`,
           [orderId, deliveryDate, deliveryLocationId, deliveryTime, 'pending']
         );
         console.log(`✅ Order #${orderId} queued for enrichment`);

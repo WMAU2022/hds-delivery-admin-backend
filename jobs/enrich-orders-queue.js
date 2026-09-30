@@ -311,13 +311,33 @@ async function syncToShopifyAsync(orderId, enrichedData) {
     };
 
     const mergedAttributes = existingAttributes.map((attr) => ({ ...attr }));
+    let changed = false;
     for (const [name, value] of Object.entries(hdsAttributes)) {
       const existingIndex = mergedAttributes.findIndex((attr) => attr.name === name);
       if (existingIndex >= 0) {
-        mergedAttributes[existingIndex].value = value;
+        if (String(mergedAttributes[existingIndex].value) !== String(value)) {
+          mergedAttributes[existingIndex].value = value;
+          changed = true;
+        }
       } else {
         mergedAttributes.push({ name, value });
+        changed = true;
       }
+    }
+
+    // Safety guard: never send a payload that would delete an existing key.
+    const mergedNames = new Set(mergedAttributes.map((attr) => attr.name));
+    const missing = existingAttributes.filter((attr) => !mergedNames.has(attr.name));
+    if (missing.length > 0) {
+      console.error(`❌ Aborting sync for #${orderId}: would delete keys: ${missing.map((a) => a.name).join(', ')}`);
+      return;
+    }
+
+    // Nothing to write: skip the PUT so Shopify doesn't log another
+    // "edited the details of this order" timeline event.
+    if (!changed) {
+      console.log(`⏭️  Shopify #${orderId} already up to date, skipping sync`);
+      return;
     }
 
     // Use REST API PUT /orders/{id} with the merged note_attributes
