@@ -84,6 +84,34 @@ router.post('/bulk/disable', async (req, res) => {
 // ⚠️ NOW THE DETAIL ROUTES
 
 /**
+ * POST /api/regions
+ * Create a new region (used by Add Region modal)
+ */
+router.post('/', async (req, res) => {
+  try {
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    if (!name) {
+      return res.status(400).json({ error: 'Region name is required' });
+    }
+
+    const region = await regionsStore.create({ ...req.body, name });
+
+    console.log(`✅ Region created: ${region.id} ${region.name}`);
+    res.status(201).json({
+      success: true,
+      data: { ...region, schedules: [] },
+      message: 'Region created',
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'A region with this name already exists' });
+    }
+    console.error('POST /regions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/regions
  */
 router.get('/', async (req, res) => {

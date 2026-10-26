@@ -963,7 +963,7 @@ async function checkBlackoutDate(regionId, date) {
     try {
       const result = await pool.query(
         `SELECT COUNT(*) as count FROM blackout_dates 
-         WHERE region_id = $1 AND start_date <= $2 AND end_date >= $2 AND enabled = true`,
+         WHERE (region_id IS NULL OR region_id = $1) AND start_date <= $2 AND end_date >= $2 AND enabled = true`,
         [regionId, dateStr]
       );
       return result.rows[0].count > 0;
