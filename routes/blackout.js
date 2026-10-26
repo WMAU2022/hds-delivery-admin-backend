@@ -3,6 +3,21 @@ const pool = require('../lib/db-auto');
 
 const router = express.Router();
 
+// pg returns DATE columns as Date objects at local midnight; send plain YYYY-MM-DD
+// so the admin UI shows the same day regardless of the server timezone
+const toDateString = (d) =>
+  d instanceof Date
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    : d;
+
+const formatRow = (row) =>
+  row && {
+    ...row,
+    start_date: toDateString(row.start_date),
+    end_date: toDateString(row.end_date),
+    blackout_date: toDateString(row.blackout_date),
+  };
+
 // Get all blackout dates
 router.get('/', async (req, res) => {
   try {
@@ -11,7 +26,7 @@ router.get('/', async (req, res) => {
     );
     res.json({
       success: true,
-      data: result.rows,
+      data: result.rows.map(formatRow),
       count: result.rows.length,
     });
   } catch (error) {
@@ -41,7 +56,7 @@ router.get('/:id', async (req, res) => {
     
     res.json({
       success: true,
-      data: result.rows[0],
+      data: formatRow(result.rows[0]),
     });
   } catch (error) {
     console.error('Error fetching blackout date:', error);
@@ -71,7 +86,7 @@ router.post('/', async (req, res) => {
     
     res.status(201).json({
       success: true,
-      data: result.rows[0],
+      data: formatRow(result.rows[0]),
     });
   } catch (error) {
     console.error('Error creating blackout date:', error);
@@ -102,7 +117,7 @@ router.put('/:id', async (req, res) => {
     
     res.json({
       success: true,
-      data: result.rows[0],
+      data: formatRow(result.rows[0]),
     });
   } catch (error) {
     console.error('Error updating blackout date:', error);
@@ -132,7 +147,7 @@ router.put('/:id/toggle', async (req, res) => {
     
     res.json({
       success: true,
-      data: result.rows[0],
+      data: formatRow(result.rows[0]),
     });
   } catch (error) {
     console.error('Error toggling blackout date:', error);
@@ -163,7 +178,7 @@ router.delete('/:id', async (req, res) => {
     res.json({
       success: true,
       message: 'Blackout date deleted',
-      data: result.rows[0],
+      data: formatRow(result.rows[0]),
     });
   } catch (error) {
     console.error('Error deleting blackout date:', error);
